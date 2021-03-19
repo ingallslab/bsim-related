@@ -1,8 +1,9 @@
 # Approximate Bayesian Computation
 
 import inferParameters
+import plotter
 from abcsysbio import EpsilonSchedule
-from abcsysbio.KernelType import KernelType
+#from abcsysbio.KernelType import KernelType
 from abcsysbio import kernels
 from abcsysbio import statistics
 
@@ -13,8 +14,6 @@ import random
 import pandas
 from pathlib import Path
 
-import seaborn as sns
-import matplotlib.pyplot as plt
 import numpy as np
 from numpy import random as rnd
 import scipy.stats as st
@@ -50,12 +49,21 @@ def getRandomValue(bounds):
     return round(random.uniform(bounds[0], bounds[1]), 3)
 
 # Determine the component wise normal 
-def component_wise_normal_kernel(current_params, kernel):
+def perturbParams(current_params, kernel, prior):
     pert_params = []
-    #print("kernel[2]: ", kernel[2])
-    for n in kernel[0]:
+
+    # index for the list of parameters
+    ind = 0
+    while ( ind < len(current_params) ):
         # Draws random sample from normal distribution rounded to 3 decimal places
-        pert_params.append(round(rnd.normal(current_params[n], np.sqrt(kernel[2][n])), 3))
+        pert = round(rnd.normal(current_params[ind], np.sqrt(kernel[2][ind])), 3)
+
+        # Check if the perturbed parameter is within the boundaries of the prior
+        if ( pert >= prior[ind][0] and pert <= prior[ind][1] ):
+            pert_params.append(pert)
+
+            ind += 1
+
     return pert_params
 
 # Calculate the weight of a single particle
@@ -81,7 +89,8 @@ def getPdfKernel(kernel, curr_params, prev_params):
     for n in kernel[0]:
         mean = prev_params[n]
         stdv = np.sqrt(kernel[2][n])
-        kern = st.norm.pdf(curr_params[n], mean, stdv)
+        #kern = st.norm.pdf(curr_params[n], mean, stdv)
+        kern = statistics.getPdfGauss(mean, stdv, curr_params[n])
         prob_density *= kern
     #print("prob_density: ", prob_density)
     return prob_density
@@ -138,21 +147,30 @@ def abc_smc(prior, first_epsilon, final_epsilon, n_par):
     t = 0
     # Particle indicator
     n = 0
+    # Counter for number of runs
+    runs = 0
 
     # Generate a parameter vector from specified bounds of prior distribution
     current_params = [getRandomValue(prior[0]), getRandomValue(prior[1]), getRandomValue(prior[2]), getRandomValue(prior[3])]
     
     # Search for acceptable parameters for all epsilon
     while ( epsilon >= final_epsilon ):
+        # Increase the number of total runs
+        runs += 1
+        
+        elongation_dist = -1
+        division_dist = -1
 
         print("current parameters: ", current_params)
 
-        # Run BSim simulation with given parameters
-        executeSimulation(current_params, initial_pop, sim_time)
-        # Get the elongation and division distances
-        elongation_dist, division_dist = inferParameters.run(bsim_data_name, cp_data_name, convertParams(current_params), export_data = False, export_plots = False)
+        # In case of lost data in csv
+        while (elongation_dist == -1 and division_dist == -1):
+            # Run BSim simulation with given parameters
+            executeSimulation(current_params, initial_pop, sim_time)
+            # Get the elongation and division distances
+            elongation_dist, division_dist = inferParameters.run(bsim_data_name, cp_data_name, convertParams(current_params), export_data = False, export_plots = False)
         # Get the weighted total distance
-        total_dist = elongation_dist*0.5 + division_dist*0.5
+        total_dist = elongation_dist + division_dist
     
         print("elongation_dist: ", elongation_dist, "division_dist: ", division_dist, "total_dist: ", total_dist)
 
@@ -218,17 +236,18 @@ def abc_smc(prior, first_epsilon, final_epsilon, n_par):
             print("t!=0; before pert current params: ", current_params)
             
             # Perturb the particle
-            current_params = component_wise_normal_kernel(current_params, kernel)
+            current_params = perturbParams(current_params, kernel, prior)
             print("t!=0; perturbed current params: ", current_params)
         
         print("n: ", n)
         print("t: ", t)
+        print("total runs: ", runs)
         print("epsilon: ", epsilon)
             
     return parameters, distances
 
 # Save posterior to csv
-def saveData(parameters, distances, n_par):
+def saveData(parameters, distances, n_par, prior):
 
     pop_length = len(parameters) 
     print(pop_length)
@@ -268,143 +287,35 @@ def saveData(parameters, distances, n_par):
     post_data_name = "posterior_data" + "_" + str(parameters[0][0]) + ".csv"
     posterior_data.to_csv(comp_path/post_data_name)
 
+    # Graph the data
     plot_folder = "Plots_" + str(parameters[0][0])
+    params = ["ElongationMean", "ElongationStdv", "DivisionMean", "DivisionStdv"]
+    
     # Pair plot
-    pairPlot(posterior_data, plot_folder)
+    plotter.pairPlot(posterior_data, plot_folder, params)
 
     # Correlation matrix
-    plotCorrMatrix(posterior_data, plot_folder)
-    plotCovmatrix(posterior_data, plot_folder)
+    plotter.plotCorrMatrix(posterior_data, plot_folder, params)
 
-    # Distplot
-    plotPriorComparison(posterior_data, plot_folder)
+    # Kde plot
+    plotter.plotKdeComp(posterior_data, plot_folder, prior, params)
 
-# Plot using pairplot
-def pairPlot(df_posterior, plot_folder):
-    
-    # If folder doesn't exist, create new folder "Posterior_Plots" to store the png files
-    plot_path = Path(__file__).parent.absolute()/'Posterior_Plots'/plot_folder
-    if not os.path.exists(plot_path):
-        os.makedirs(plot_path)
-
-    # Plot
-    sns.pairplot(df_posterior, diag_kind = 'hist')
-
-    # Save plot
-    title = "default" + ".png"
-    plt.savefig(plot_path/title)
-
-    plt.show()
-    plt.close()
-
-def plotCorrMatrix(df_posterior, plot_folder):
-
-    # If folder doesn't exist, create new folder "Posterior_Plots" to store the png files
-    plot_path = Path(__file__).parent.absolute()/'Posterior_Plots'/plot_folder
-    if not os.path.exists(plot_path):
-        os.makedirs(plot_path)
-        
-    #plt.matshow(df_posterior.corr())
-
-    f = plt.figure(figsize = (19, 15))
-    plt.matshow(df_posterior.corr(), fignum = f.number)
-    plt.xticks(range(df_posterior.select_dtypes(['number']).shape[1]), df_posterior.select_dtypes(['number']).columns, fontsize = 14, rotation = 45)
-    plt.yticks(range(df_posterior.select_dtypes(['number']).shape[1]), df_posterior.select_dtypes(['number']).columns, fontsize = 14)
-    cb = plt.colorbar()
-    cb.ax.tick_params(labelsize = 14)
-    plt.title('Correlation Matrix', fontsize = 16);
-
-    # Save plot
-    title = "corr1" + ".png"
-    plt.savefig(plot_path/title)
-    
-    plt.show()
-    plt.close()
-
-def plotCovmatrix(df_posterior, plot_folder):
-    # If folder doesn't exist, create new folder "Posterior_Plots" to store the png files
-    plot_path = Path(__file__).parent.absolute()/'Posterior_Plots'/plot_folder
-    if not os.path.exists(plot_path):
-        os.makedirs(plot_path)
-
-    f = plt.figure(figsize = (19, 15))
-    plt.matshow(df_posterior.cov(), fignum = f.number)
-    plt.xticks(range(df_posterior.select_dtypes(['number']).shape[1]), df_posterior.select_dtypes(['number']).columns, fontsize = 14, rotation = 45)
-    plt.yticks(range(df_posterior.select_dtypes(['number']).shape[1]), df_posterior.select_dtypes(['number']).columns, fontsize = 14)
-    cb = plt.colorbar()
-    cb.ax.tick_params(labelsize = 14)
-    plt.title('Covariance Matrix', fontsize = 16);
-
-    # Save plot
-    title = "cov1" + ".png"
-    plt.savefig(plot_path/title)
-    
-    plt.show()
-    plt.close()
-
-# Compare parameters with prior population
-def plotPriorComparison(df_posterior, plot_folder):
-    # If folder doesn't exist, create new folder "Posterior_Plots" to store the png files
-    plot_path = Path(__file__).parent.absolute()/'Posterior_Plots'/plot_folder
-    if not os.path.exists(plot_path):
-        os.makedirs(plot_path)
-    
-    # Number of populations
-    n_pop = df_posterior.at[df_posterior.shape[0] - 1, "Population"]
-
-    # Data for prior
-    df_prior_el_mean = df_posterior[df_posterior["Population"] == 1].ElongationMean
-    df_prior_el_stdv = df_posterior[df_posterior["Population"] == 1].ElongationStdv
-    df_prior_div_mean = df_posterior[df_posterior["Population"] == 1].DivisionMean
-    df_prior_div_stdv = df_posterior[df_posterior["Population"] == 1].DivisionStdv
-
-    fig = plt.figure()
-
-    # Create a graph for each population
-    for n in range(2, n_pop + 1):
-        df_pop = df_posterior[df_posterior["Population"] == n]
-
-        ax1 = fig.add_subplot(221)
-        sns.histplot(data = df_pop.ElongationMean, ax = ax1)
-        sns.kdeplot(data = df_prior_el_mean, ax = ax1)
-        plt.legend(['Prior', 'Population ' + str(n)])
-
-        ax2 = fig.add_subplot(222)
-        sns.histplot(data = df_pop.ElongationStdv, ax = ax2)
-        sns.kdeplot(data = df_prior_el_stdv, ax = ax2)
-        plt.legend(['Prior', 'Population ' + str(n)])
-
-        ax3 = fig.add_subplot(223)
-        sns.histplot(data = df_pop.DivisionMean, ax = ax3)
-        sns.kdeplot(data = df_prior_div_mean, ax = ax3)
-        plt.legend(['Prior', 'Population ' + str(n)])
-
-        ax4 = fig.add_subplot(224)
-        sns.histplot(data = df_pop.DivisionStdv, ax = ax4)
-        sns.kdeplot(data = df_prior_div_stdv, ax = ax4)
-        plt.legend(['Prior', 'Population ' + str(n)])
-
-        # Save plot
-        title = "Population " + str(n) + ".png"
-        plt.savefig(plot_path/title)
-        
-        plt.show()
-        plt.close()
-        
+    # Plot parameters
+    plotter.plotParameters(posterior_data, plot_folder)
 
 # Main function
 def main():
 
     # Define epsilon schedule
-    first_epsilon = 8
-    final_epsilon = 5
+    first_epsilon = 25
+    final_epsilon = 20#8
 
     # Define range for input
-    el_mean_bounds = [15, 18]               
-    el_stdv_bounds = [3, 4]
+    el_mean_bounds = [14, 20]#[15, 18]    [8, 26]           
+    el_stdv_bounds = [1, 6]#[3, 4] [0, 7]
 
-    div_mean_bounds = [95, 98]
-    div_stdv_bounds = [0, 1.5]
+    div_mean_bounds = [90, 105]#[95, 98]
+    div_stdv_bounds = [0, 3]#[0, 1.5]
 
     prior = [el_mean_bounds, el_stdv_bounds, div_mean_bounds, div_stdv_bounds]
 
@@ -413,7 +324,7 @@ def main():
     distances = []
 
     # Number of particles for each population
-    n_par = 5          
+    n_par = 2
 
     # Run the ABC method
     parameters, distances = abc_smc(prior, first_epsilon, final_epsilon, n_par)
@@ -421,7 +332,7 @@ def main():
     print("distances: ", distances)
 
     # Save to csv
-    saveData(parameters, distances, n_par)
+    saveData(parameters, distances, n_par, prior)
 
 
 # ----------------------------

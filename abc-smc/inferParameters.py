@@ -24,8 +24,8 @@ def getElongationRate(LengthColTitle, TimeColTitle, data):
         elongation_rates = []
         
         df_bsim = data[data["ObjectNumber"] == obj_number]
-        prev_length = df_bsim["Length"].iloc[0]
-        prev_time = df_bsim["SimulationTime"].iloc[0]
+        prev_length = df_bsim["Length"].iat[0]
+        prev_time = df_bsim["SimulationTime"].iat[0]
 
         for row in df_bsim.itertuples():
 
@@ -63,9 +63,8 @@ def getDivisionThreshold(LengthColTitle, PopColTitle, data):
     for obj_number in range(1, obj_count + 1):
         df_bsim = data[data["ObjectNumber"] == obj_number]
         #print(df_bsim)
-        
-        prev_length = df_bsim["Length"].iloc[0]
-        prev_pop = df_bsim["Population"].iloc[0]
+        prev_length = df_bsim["Length"].iat[0]
+        prev_pop = df_bsim["Population"].iat[0]
 
         division_lengths = []
         
@@ -146,69 +145,75 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     
     print(bsim_data)
     print(cp_data)
-    
-    # BSim Simulations
-    avg_bsim_elongation_rates = getElongationRate("Length", "SimulationTime", bsim_data)
-    avg_bsim_division_lengths = getDivisionThreshold("Length", "Population", bsim_data)
 
-    # CellProfiler Simulations
-    avg_cp_elongation_rates = getElongationRate("Length", "SimulationTime", cp_data)
-    avg_cp_division_lengths = getDivisionThreshold("Length", "Population", cp_data)
+    # Check if the dataframes are not empty
+    if (not bsim_data.empty and not cp_data.empty):
+        
+        # Infer BSim Simulations
+        avg_bsim_elongation_rates = getElongationRate("Length", "SimulationTime", bsim_data)
+        avg_bsim_division_lengths = getDivisionThreshold("Length", "Population", bsim_data)
 
-    # Remove zeros from plots and calculations
-    non_zero_bsim_elongation = [i for i in avg_bsim_elongation_rates if i != "-"]
-    non_zero_bsim_division = [i for i in avg_bsim_division_lengths if i != "-"]
-    non_zero_cp_elongation = [i for i in avg_cp_elongation_rates if i != "-"]
-    non_zero_cp_division = [i for i in avg_cp_division_lengths if i != "-"]
+        # Infer Real Simulations
+        avg_cp_elongation_rates = getElongationRate("Length", "SimulationTime", cp_data)
+        avg_cp_division_lengths = getDivisionThreshold("Length", "Population", cp_data)
 
-    # Finds the Wasserstein distance between two distributions
-    ws_elongation = wasserstein_distance(non_zero_bsim_elongation, non_zero_cp_elongation)
-    ws_division = wasserstein_distance(non_zero_bsim_division, non_zero_cp_division)
+        # Remove zeros from plots and calculations
+        non_zero_bsim_elongation = [i for i in avg_bsim_elongation_rates if i != "-"]
+        non_zero_bsim_division = [i for i in avg_bsim_division_lengths if i != "-"]
+        non_zero_cp_elongation = [i for i in avg_cp_elongation_rates if i != "-"]
+        non_zero_cp_division = [i for i in avg_cp_division_lengths if i != "-"]
 
-    
-    # -------------------------------- Data to csv  ---------------------------------------
-    if ( export_data ):
-        obj_count = min(cp_data.at[cp_data.shape[0] - 1, "ObjectNumber"],
-                            bsim_data.at[bsim_data.shape[0] - 1, "ObjectNumber"])
-        #print(obj_count)
-            
-        cols = ["ObjectNumber", "BSimElongationRate", "CPElongationRate", "BSimDivisionThreshold", "CPDivisionThreshold", "WsElongation", "WsDivision"]
-        data = []
+        # Finds the Wasserstein distance between two distributions
+        ws_elongation = wasserstein_distance(non_zero_bsim_elongation, non_zero_cp_elongation)
+        ws_division = wasserstein_distance(non_zero_bsim_division, non_zero_cp_division)
 
-        for obj_number in range(1, obj_count + 1):
-            row = [obj_number]
-            row.append(avg_bsim_elongation_rates[obj_number - 1])
-            row.append(avg_cp_elongation_rates[obj_number - 1])
-            row.append(avg_bsim_division_lengths[obj_number - 1])
-            row.append(avg_cp_division_lengths[obj_number - 1])
+        # -------------------------------- Data to csv  ---------------------------------------
+        if ( export_data ):
+            obj_count = min(cp_data.at[cp_data.shape[0] - 1, "ObjectNumber"],
+                                bsim_data.at[bsim_data.shape[0] - 1, "ObjectNumber"])
+            #print(obj_count)
+                
+            cols = ["ObjectNumber", "BSimElongationRate", "CPElongationRate", "BSimDivisionThreshold", "CPDivisionThreshold", "WsElongation", "WsDivision"]
+            data = []
 
-            row.append(ws_elongation)
-            row.append(ws_division)
+            for obj_number in range(1, obj_count + 1):
+                row = [obj_number]
+                row.append(avg_bsim_elongation_rates[obj_number - 1])
+                row.append(avg_cp_elongation_rates[obj_number - 1])
+                row.append(avg_bsim_division_lengths[obj_number - 1])
+                row.append(avg_cp_division_lengths[obj_number - 1])
 
-            # Add row
-            data.append(row)
+                row.append(ws_elongation)
+                row.append(ws_division)
 
-        # Export data to csv file
-        comparison_data = pandas.DataFrame(data, columns = cols)
-        print(comparison_data)
+                # Add row
+                data.append(row)
 
-        # If folder doesn't exist, create new folder "Comparison_Data" to store the csv files
-        comp_path = Path(__file__).parent.absolute()/'Comparison_Data' 
-        if not os.path.exists(comp_path):
-            os.makedirs(comp_path)
+            # Export data to csv file
+            comparison_data = pandas.DataFrame(data, columns = cols)
+            print(comparison_data)
 
-        comp_data_name = "comparison_data" + "_" + str(current_params) + ".csv"
-        comparison_data.to_csv(comp_path/comp_data_name)#'comparison_data-26hr-ver2.csv'
+            # If folder doesn't exist, create new folder "Comparison_Data" to store the csv files
+            comp_path = Path(__file__).parent.absolute()/'Comparison_Data' 
+            if not os.path.exists(comp_path):
+                os.makedirs(comp_path)
 
-    # -------------------------- Plot the distributions -------------------------------------
-    if ( export_plots ):
-        max_rate = max(max(non_zero_bsim_elongation), max(non_zero_cp_elongation))
-        el_plot_title = "Elongation_Rate" + "_" + str(current_params)
-        plotDistributionsOverlay(non_zero_bsim_elongation, non_zero_cp_elongation, "BSim", "CellProfiler", math.ceil(max_rate), el_plot_title)
+            comp_data_name = "comparison_data" + "_" + str(current_params) + ".csv"
+            comparison_data.to_csv(comp_path/comp_data_name)#'comparison_data-26hr-ver2.csv'
 
-        max_threshold = max(max(non_zero_bsim_division), max(non_zero_cp_division))
-        div_plot_title = "Division_Threshold" + "_" + str(current_params)
-        plotDistributionsOverlay(non_zero_bsim_division, non_zero_cp_division, "BSim", "CellProfiler", math.ceil(max_threshold), div_plot_title)
+        # -------------------------- Plot the distributions -------------------------------------
+        if ( export_plots ):
+            max_rate = max(max(non_zero_bsim_elongation), max(non_zero_cp_elongation))
+            el_plot_title = "Elongation_Rate" + "_" + str(current_params)
+            plotDistributionsOverlay(non_zero_bsim_elongation, non_zero_cp_elongation, "BSim", "CellProfiler", math.ceil(max_rate), el_plot_title)
+
+            max_threshold = max(max(non_zero_bsim_division), max(non_zero_cp_division))
+            div_plot_title = "Division_Threshold" + "_" + str(current_params)
+            plotDistributionsOverlay(non_zero_bsim_division, non_zero_cp_division, "BSim", "CellProfiler", math.ceil(max_threshold), div_plot_title)
+
+    else:
+        print("Empty dataframe. bsim_data.empty: ", bsim_data.empty)
+        return -1, -1
 
     # Return the wasserstein distances
     return ws_elongation, ws_division

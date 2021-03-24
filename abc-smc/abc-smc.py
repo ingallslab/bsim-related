@@ -168,9 +168,9 @@ def abc_smc(prior, first_epsilon, final_epsilon, n_par):
             # Run BSim simulation with given parameters
             executeSimulation(current_params, initial_pop, sim_time)
             # Get the elongation and division distances
-            elongation_dist, division_dist = inferParameters.run(bsim_data_name, cp_data_name, convertParams(current_params), export_data = False, export_plots = False)
+            elongation_dist, division_dist, local_anisotropy_dist, aspect_ratio_diff, density_parameter_diff = inferParameters.run(bsim_data_name, cp_data_name, convertParams(current_params), export_data = False, export_plots = False)
         # Get the weighted total distance
-        total_dist = elongation_dist + division_dist
+        total_dist = elongation_dist + division_dist + local_anisotropy_dist + aspect_ratio_diff + density_parameter_diff
     
         print("elongation_dist: ", elongation_dist, "division_dist: ", division_dist, "total_dist: ", total_dist)
 

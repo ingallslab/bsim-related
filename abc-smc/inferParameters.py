@@ -9,6 +9,10 @@ from scipy.stats import wasserstein_distance
 from pathlib import Path
 import os
 
+from image_drawing import draw_image_bw
+from image_processing import image_envelope_props
+from cell_data_processing import get_local_anisotropies
+
 # ---------------------------- Elongation Rate ----------------------------------
 # Find the change between the lengths of non-infected bacteria at each timestep
 
@@ -153,9 +157,37 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         avg_bsim_elongation_rates = getElongationRate("Length", "SimulationTime", bsim_data)
         avg_bsim_division_lengths = getDivisionThreshold("Length", "Population", bsim_data)
 
+        df_bsim = bsim_data[bsim_data["ImageNumber"] == bsim_data.at[bsim_data.shape[0] - 1, "ImageNumber"]]
+        df_bsim.reset_index(drop = True, inplace = True)
+        cell_centers_x_bsim = df_bsim["AreaShape_Center_X"]
+        cell_centers_y_bsim = df_bsim["AreaShape_Center_Y"]
+        # uses major and minor axis length for length and radius
+        cell_lengths_bsim = df_bsim["AreaShape_MajorAxisLength"] - df_bsim["AreaShape_MinorAxisLength"]
+        cell_radii_bsim = df_bsim["AreaShape_MinorAxisLength"] / 2
+        cell_orientations_bsim = df_bsim["AreaShape_Orientation"]
+        
+        anisotropies_bsim = get_local_anisotropies(cell_centers_x_bsim, cell_centers_y_bsim, cell_orientations_bsim, radius = 60) # set range as 60 for now
+        # store image_dimensions as a variable
+        image_bsim = np.array( draw_image_bw((1000, 1000), cell_centers_x_bsim, cell_centers_y_bsim, cell_lengths_bsim, cell_radii_bsim, cell_orientations_bsim) )
+        aspect_ratio_bsim, density_parameter_bsim = image_envelope_props(image_bsim)
+
         # Infer Real Simulations
         avg_cp_elongation_rates = getElongationRate("Length", "SimulationTime", cp_data)
         avg_cp_division_lengths = getDivisionThreshold("Length", "Population", cp_data)
+
+        df_cp = cp_data[cp_data["ImageNumber"] == cp_data.at[cp_data.shape[0] - 1, "ImageNumber"]]
+        df_cp.reset_index(drop = True, inplace = True)
+        cell_centers_x_cp = df_cp["AreaShape_Center_X"]
+        cell_centers_y_cp = df_cp["AreaShape_Center_Y"]
+        # uses major and minor axis length for length and radius
+        cell_lengths_cp = df_cp["AreaShape_MajorAxisLength"] - df_bsim["AreaShape_MinorAxisLength"]
+        cell_radii_cp = df_cp["AreaShape_MinorAxisLength"] / 2
+        cell_orientations_cp = df_cp["AreaShape_Orientation"]
+
+        anisotropies_cp = get_local_anisotropies(cell_centers_x_cp, cell_centers_y_cp, cell_orientations_cp, radius = 60) # set range as 60 for now
+        # change to actual image when we have real data, store image_dimensions as a variable
+        image_cp = np.array( draw_image_bw((1000, 1000), cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
+        aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)
 
         # Remove zeros from plots and calculations
         non_zero_bsim_elongation = [i for i in avg_bsim_elongation_rates if i != "-"]
@@ -166,6 +198,10 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         # Finds the Wasserstein distance between two distributions
         ws_elongation = wasserstein_distance(non_zero_bsim_elongation, non_zero_cp_elongation)
         ws_division = wasserstein_distance(non_zero_bsim_division, non_zero_cp_division)
+        ws_local_anisotropies = wasserstein_distance(anisotropies_bsim, anisotropies_cp)
+        aspect_ratio_diff = aspect_ratio_bsim - aspect_ratio_cp
+        density_parameter_diff = density_parameter_bsim - density_parameter_cp
+
 
         # -------------------------------- Data to csv  ---------------------------------------
         if ( export_data ):
@@ -216,7 +252,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         return -1, -1
 
     # Return the wasserstein distances
-    return ws_elongation, ws_division
+    return ws_elongation, ws_division, ws_local_anisotropies, aspect_ratio_diff, density_parameter_diff
 
 #run('Infection_Simulation-26hr-ver2.csv', 'Infection_Simulation-26hr-ver2-cp.csv', (0,0,0,1))
 

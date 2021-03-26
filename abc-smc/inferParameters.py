@@ -142,10 +142,10 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     
     # Get data from the csv file
     bsim_path = Path(__file__).parent.absolute()/'PhageFieldSims'/bsim_folder_name/bsim_file
-    bsim_data = pandas.read_csv(bsim_path)
+    bsim_data = pandas.read_csv(bsim_path, index_col = False)
 
     cp_path = Path(__file__).parent.absolute()/'PhageFieldSims'/cp_file
-    cp_data = pandas.read_csv(cp_path)
+    cp_data = pandas.read_csv(cp_path, index_col = False)
     
     print(bsim_data)
     print(cp_data)

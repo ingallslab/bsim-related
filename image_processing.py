@@ -41,12 +41,17 @@ def image_envelope_props(image):
         image_close[contour_poly] = 255
     # get properties of the envelope
     image_props = pandas.DataFrame(skimage.measure.regionprops_table(image_close, properties = ["major_axis_length", "minor_axis_length", "area"]))
+    average_aspect_ratio = (image_props["minor_axis_length"] / image_props["major_axis_length"]).mean()
+    density_parameter = np.sum(image == 255) / image_props["area"].sum()
+    '''
     if (image_props.shape[0] == 1):
         aspect_ratio = image_props["minor_axis_length"][0] / image_props["major_axis_length"][0]
         density_parameter = np.sum(image == 255) / image_props["area"][0]
         return aspect_ratio, density_parameter
     else:
         return False
+    '''
+    return average_aspect_ratio, density_parameter
 
 r"""
 ##### add documentation

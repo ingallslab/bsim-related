@@ -58,6 +58,26 @@ def getElongationRate(data, time_step):
 
     return avg_elongation_rates
 
+# TO-DO: think of better way to detect division
+def getDivisionThreshold_v2(LengthColTitle, data, ObjectNumberTitle, ImageNumberTitle,):
+    final_cell_count = data.at[data.shape[0] - 1, ObjectNumberTitle]
+    cell_division_lengths = [[] for i in range(final_cell_count)]
+    prev_cell_lengths = []
+
+    for image_number in range(1, image_count + 1):
+        df = data[data[ImageNumberTitle] == image_number]
+        curr_cell_lengths = df[LengthColTitle]
+        min_count = min(len(prev_cell_lengths), len(curr_cell_lengths)) ## check whether min should be used or not 
+
+        if ( len(curr_cell_lengths) > len(prev_cell_lengths) ):
+            for i in range(min_count):
+                percent_change = ( curr_cell_lengths[i] - prev_cell_lengths[i] ) / prev_cell_lengths[i]
+                if (percent_change <= -0.3):
+                    cell_division_lengths[i].append(prev_cell_lengths[i])
+                    #print("prev_length")
+                    #print(prev_cell_lengths[i])
+        
+        prev_cell_lengths = curr_cell_lengths
 
 # Find the length of the bacteria before the population increases and the length of the bacteria decreases by 15%
 def getDivisionThreshold(data):

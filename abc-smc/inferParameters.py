@@ -13,13 +13,12 @@ from image_drawing import draw_image_bw
 from image_processing import image_envelope_props
 from cell_data_processing import get_local_anisotropies
 
-# ---------------------------- Elongation Rate ----------------------------------
-# Find the change between the lengths of non-infected bacteria at each timestep
 
-def getElongationRate(LengthColTitle, TimeColTitle, data):
+# Find the change between the lengths of non-infected bacteria at each timestep
+def getElongationRate(data, time_step):
     # Get the total number of objects in the simulation
     obj_count = data.at[data.shape[0] - 1, "ObjectNumber"]
-
+    
     # Store the average elongation rate for each bacteria
     avg_elongation_rates = []
 
@@ -27,21 +26,24 @@ def getElongationRate(LengthColTitle, TimeColTitle, data):
     for obj_number in range(1, obj_count + 1):
         elongation_rates = []
         
-        df_bsim = data[data["ObjectNumber"] == obj_number]
-        prev_length = df_bsim["Length"].iat[0]
-        prev_time = df_bsim["SimulationTime"].iat[0]
+        df = data[data["ObjectNumber"] == obj_number]
 
-        for row in df_bsim.itertuples():
+        if ( df["AreaShape_MajorAxisLength"].shape[0] == 0 ): 
+            print("df_bsim[AreaShape_MajorAxisLength].shape: ", df["AreaShape_MajorAxisLength"].shape)
+            print("IndexError: index 0 is out of bounds for axis 0 with size 0")
+            return -1
+        else:
+            prev_length = df["AreaShape_MajorAxisLength"].iat[0]
+
+        for row in df.itertuples():
 
             # To account only for elongation events ( should be positive; disregard changes in length during division and infection )
-            change_in_length = row.Length - prev_length
-            change_in_time = row.SimulationTime - prev_time
-            if ( change_in_length >= 0 and change_in_time > 0) :
-                elongation_rates.append(change_in_length / change_in_time)
+            change_in_length = row.AreaShape_MajorAxisLength - prev_length
+            if ( change_in_length > 0 ):
+                elongation_rates.append(change_in_length / time_step)
 
             # Update previous values
-            prev_length = row.Length
-            prev_time = row.SimulationTime
+            prev_length = row.AreaShape_MajorAxisLength
 
         # Find the average elongation rate for a bacterium
         avg_elongation = 0.0
@@ -56,32 +58,47 @@ def getElongationRate(LengthColTitle, TimeColTitle, data):
 
     return avg_elongation_rates
 
-# ---------------------------- Division Threshold -------------------------------
-# Find the length of the bacteria before the population increases and the length of the bacteria decreases by 30%
 
-def getDivisionThreshold(LengthColTitle, PopColTitle, data):
+# Find the length of the bacteria before the population increases and the length of the bacteria decreases by 15%
+def getDivisionThreshold(data):
     obj_count = data.at[data.shape[0] - 1, "ObjectNumber"]
     
-    avg_division_lengths = []
+    # Get the population for each image
+    n_images = data.at[data.shape[0] - 1, "ImageNumber"]
+    pop = []
 
+    for image_num in range(1, n_images + 1):
+        df_image = data[data["ImageNumber"] == image_num]
+        #print("df_image[].shape[0]: ", df_image.shape[0])
+        if (df_image.shape[0] == 0):
+            return -1
+        else:
+            pop.append(df_image["ObjectNumber"].iloc[-1])
+    print("pop: ", pop)
+    
+    avg_division_lengths = []
     for obj_number in range(1, obj_count + 1):
-        df_bsim = data[data["ObjectNumber"] == obj_number]
-        #print(df_bsim)
-        prev_length = df_bsim["Length"].iat[0]
-        prev_pop = df_bsim["Population"].iat[0]
+        df = data[data["ObjectNumber"] == obj_number]
+
+        if (df["AreaShape_MajorAxisLength"].shape[0] == 0):
+            print("IndexError: index 0 is out of bounds for axis 0 with size 0")
+            return -1
+        else:
+            prev_length = df["AreaShape_MajorAxisLength"].iat[0]
+            prev_pop = pop[0]
 
         division_lengths = []
         
-        for row in df_bsim.itertuples():
-            percent_change = ( row.Length - prev_length ) / prev_length
-            if ( row.Population > prev_pop and percent_change <= -0.3 ):
+        for row in df.itertuples():
+            percent_change = ( row.AreaShape_MajorAxisLength - prev_length ) / prev_length
+            if ( pop[row.ImageNumber - 1] > prev_pop and percent_change <= -0.15 ):
+                # Get the division length
                 division_lengths.append(prev_length)
-                #print("prev_length")
-                #print(prev_length)
+                #print("prev_length: ", prev_length)
 
-            #Update previous values
-            prev_length = row.Length
-            prev_pop = row.Population
+            # Update previous values
+            prev_length = row.AreaShape_MajorAxisLength
+            prev_pop = pop[row.ImageNumber - 1]
 
         # Find the average division threshold for a bacterium
         avg_division_length = 0.0
@@ -96,37 +113,18 @@ def getDivisionThreshold(LengthColTitle, PopColTitle, data):
 
     return avg_division_lengths
 
-# Create a plot from a distribution with bars side-by-side
-def plotDistributions( data1, data2, label1, label2, maxRate, title ) :
-    bins = np.linspace(0, maxRate, maxRate)
-
-    plt.hist([data1, data2], bins, alpha = 0.5, label=[label1, label2])
-    plt.legend(loc = 'upper right')
-    plt.title(title)
-
-    # If folder doesn't exist, create new folder "Comparison_Plots" to store the png files
-    plot_path = Path(__file__).parent.absolute()/'Comparison_Plots'
-    if not os.path.exists(plot_path):
-        os.makedirs(plot_path)
-    # Save plot
-    title = title + ".png"
-    plt.savefig(plot_path/title)
-    
-    #plt.show()
-    plt.close()
-
 # Create a plot from a distribution with overlapping bars
-def plotDistributionsOverlay( data1, data2, label1, label2, maxRate, title ) :
-    bins = np.linspace(0, maxRate, maxRate)
-    plt.style.use('seaborn-deep')
+def plotDistributionsOverlay( data1, data2, label1, label2, objNum, title, plot_folder) :
+    bins = objNum#math.ceil(np.sqrt(objNum))
     
+    plt.style.use('seaborn-deep')
     plt.hist(data1, bins, alpha=0.5, label = label1, edgecolor = 'black')
     plt.hist(data2, bins, alpha=0.5, label = label2, edgecolor = 'black')
     plt.legend(loc = 'upper right')
     plt.title(title)
     
     # If folder doesn't exist, create new folder "Comparison_Plots" to store the png files
-    plot_path = Path(__file__).parent.absolute()/'Comparison_Plots'
+    plot_path = Path(__file__).parent.absolute()/'Comparison_Plots'/plot_folder
     if not os.path.exists(plot_path):
         os.makedirs(plot_path)
     # Save plot
@@ -135,6 +133,28 @@ def plotDistributionsOverlay( data1, data2, label1, label2, maxRate, title ) :
     
     #plt.show()
     plt.close()
+
+# Plot the differences
+def plotDifferences( data1, data2, label1, label2, objNum, title, plot_folder ):
+    n = 1
+    ind = np.arange(n)
+    
+    plt.bar(ind, data1 , 0.3, label = label1)
+    plt.bar(ind + 0.3, data2, 0.3, label = label2)
+    plt.legend(loc = 'upper right')
+    plt.title(title)
+    
+    # If folder doesn't exist, create new folder "Comparison_Plots" to store the png files
+    plot_path = Path(__file__).parent.absolute()/'Comparison_Plots'/plot_folder
+    if not os.path.exists(plot_path):
+        os.makedirs(plot_path)
+    # Save plot
+    title = title + ".png"
+    plt.savefig(plot_path/title)
+    
+    #plt.show()
+    plt.close()
+
 
 # Main Function
 def run(bsim_file, cp_file, current_params, export_data, export_plots):    
@@ -142,10 +162,11 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     
     # Get data from the csv file
     bsim_path = Path(__file__).parent.absolute()/'PhageFieldSims'/bsim_folder_name/bsim_file
-    bsim_data = pandas.read_csv(bsim_path, index_col = False)
+    #bsim_path = Path(__file__).parent.absolute()/'PhageFieldSims'/bsim_file   #testing#
+    bsim_data = pandas.read_csv(bsim_path, index_col = False) # force pandas to not use the first column as the index
 
     cp_path = Path(__file__).parent.absolute()/'PhageFieldSims'/cp_file
-    cp_data = pandas.read_csv(cp_path, index_col = False)
+    cp_data = pandas.read_csv(cp_path, index_col = False)     # force pandas to not use the first column as the index
     
     print(bsim_data)
     print(cp_data)
@@ -154,8 +175,9 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     if (not bsim_data.empty and not cp_data.empty):
         
         # Infer BSim Simulations
-        avg_bsim_elongation_rates = getElongationRate("Length", "SimulationTime", bsim_data)
-        avg_bsim_division_lengths = getDivisionThreshold("Length", "Population", bsim_data)
+        bsim_time_step = 0.5#0.03#0.5    # in hours
+        avg_bsim_elongation_rates = getElongationRate(bsim_data, bsim_time_step)
+        avg_bsim_division_lengths = getDivisionThreshold(bsim_data)
 
         df_bsim = bsim_data[bsim_data["ImageNumber"] == bsim_data.at[bsim_data.shape[0] - 1, "ImageNumber"]]
         df_bsim.reset_index(drop = True, inplace = True)
@@ -172,8 +194,9 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         aspect_ratio_bsim, density_parameter_bsim = image_envelope_props(image_bsim)
 
         # Infer Real Simulations
-        avg_cp_elongation_rates = getElongationRate("Length", "SimulationTime", cp_data)
-        avg_cp_division_lengths = getDivisionThreshold("Length", "Population", cp_data)
+        cp_time_step = 0.5#2/60#0.5     # in hours
+        avg_cp_elongation_rates = getElongationRate(cp_data, cp_time_step)
+        avg_cp_division_lengths = getDivisionThreshold(cp_data)
 
         df_cp = cp_data[cp_data["ImageNumber"] == cp_data.at[cp_data.shape[0] - 1, "ImageNumber"]]
         df_cp.reset_index(drop = True, inplace = True)
@@ -189,6 +212,11 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         image_cp = np.array( draw_image_bw((1000, 1000), cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
         aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)
 
+        # Check if length dataframe was valid
+        if (avg_bsim_elongation_rates == -1 or avg_bsim_division_lengths == -1 or avg_cp_elongation_rates == -1 or avg_cp_division_lengths == -1):
+            print("Invalid dataframe for length")
+            return -1, -1, -1, -1, -1
+
         # Remove zeros from plots and calculations
         non_zero_bsim_elongation = [i for i in avg_bsim_elongation_rates if i != "-"]
         non_zero_bsim_division = [i for i in avg_bsim_division_lengths if i != "-"]
@@ -202,14 +230,15 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         aspect_ratio_diff = aspect_ratio_bsim - aspect_ratio_cp
         density_parameter_diff = density_parameter_bsim - density_parameter_cp
 
-
         # -------------------------------- Data to csv  ---------------------------------------
         if ( export_data ):
             obj_count = min(cp_data.at[cp_data.shape[0] - 1, "ObjectNumber"],
                                 bsim_data.at[bsim_data.shape[0] - 1, "ObjectNumber"])
             #print(obj_count)
                 
-            cols = ["ObjectNumber", "BSimElongationRate", "CPElongationRate", "BSimDivisionThreshold", "CPDivisionThreshold", "WsElongation", "WsDivision"]
+            cols = ["ObjectNumber", "BSimElongationRate", "CPElongationRate", "BSimDivisionThreshold", "CPDivisionThreshold",
+                    "BSimAnisotropies", "CPAnisotropies", "BSimAspectRatio", "CPAspectRatio", "BSimDensityParam", "CPDensityParam",
+                    "WsElongation", "WsDivision", "WsLocalAnisotropies", "AspectRatioDiff", "DensityParamDiff"]
             data = []
 
             for obj_number in range(1, obj_count + 1):
@@ -219,8 +248,19 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
                 row.append(avg_bsim_division_lengths[obj_number - 1])
                 row.append(avg_cp_division_lengths[obj_number - 1])
 
+                row.append(anisotropies_bsim[obj_number - 1])
+                row.append(anisotropies_cp[obj_number - 1])
+                row.append(aspect_ratio_bsim)
+                row.append(aspect_ratio_cp)
+                row.append(density_parameter_bsim)
+                row.append(density_parameter_cp)
+
                 row.append(ws_elongation)
                 row.append(ws_division)
+                row.append(ws_local_anisotropies)
+
+                row.append(aspect_ratio_diff)
+                row.append(density_parameter_diff)
 
                 # Add row
                 data.append(row)
@@ -239,22 +279,35 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
 
         # -------------------------- Plot the distributions -------------------------------------
         if ( export_plots ):
-            max_rate = max(max(non_zero_bsim_elongation), max(non_zero_cp_elongation))
-            el_plot_title = "Elongation_Rate" + "_" + str(current_params)
-            plotDistributionsOverlay(non_zero_bsim_elongation, non_zero_cp_elongation, "BSim", "CellProfiler", math.ceil(max_rate), el_plot_title)
+            obj_count = min(cp_data["ObjectNumber"].iat[-1],bsim_data["ObjectNumber"].iat[-1])
+            print("obj_count: ", obj_count)
 
-            max_threshold = max(max(non_zero_bsim_division), max(non_zero_cp_division))
-            div_plot_title = "Division_Threshold" + "_" + str(current_params)
-            plotDistributionsOverlay(non_zero_bsim_division, non_zero_cp_division, "BSim", "CellProfiler", math.ceil(max_threshold), div_plot_title)
+            plot_folder = "Plots_" + str(current_params)
+            
+            el_plot_title = "Elongation_Rate" 
+            plotDistributionsOverlay(non_zero_bsim_elongation, non_zero_cp_elongation, "BSim", "CellProfiler", obj_count, el_plot_title, plot_folder)
+
+            div_plot_title = "Division_Threshold" 
+            plotDistributionsOverlay(non_zero_bsim_division, non_zero_cp_division, "BSim", "CellProfiler", obj_count, div_plot_title, plot_folder)
+
+            ani_plot_title = "Local_Anisotropies" 
+            plotDistributionsOverlay(anisotropies_bsim, anisotropies_cp, "BSim", "CellProfiler", obj_count, ani_plot_title, plot_folder)
+
+            aspect_plot_title = "Aspect_Ratio" 
+            plotDifferences( aspect_ratio_bsim, aspect_ratio_cp, "BSim", "CellProfiler", obj_count, aspect_plot_title, plot_folder)
+
+            density_plot_title = "Density" 
+            plotDifferences( density_parameter_bsim, density_parameter_cp, "BSim", "CellProfiler", obj_count, density_plot_title, plot_folder)
 
     else:
         print("Empty dataframe. bsim_data.empty: ", bsim_data.empty)
-        return -1, -1
+        return -1, -1, -1, -1, -1
 
     # Return the wasserstein distances
     return ws_elongation, ws_division, ws_local_anisotropies, aspect_ratio_diff, density_parameter_diff
 
-#run('Infection_Simulation-26hr-ver2.csv', 'Infection_Simulation-26hr-ver2-cp.csv', (0,0,0,1))
+#run('BSim_Simulation.csv', 'BSim_Simulation_1.23_0.277_7.0_0.1-6.5.csv', 'real_data_01', True, True)
+#run('BSim_Simulation-0.03-1.csv', 'MyExpt_filtered_objects_2.csv', 'real_data_01', True, True)
 
 
 

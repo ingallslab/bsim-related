@@ -9,9 +9,12 @@ from scipy.stats import wasserstein_distance
 from pathlib import Path
 import os
 
-from image_drawing import draw_image_bw
-from image_processing import image_envelope_props
-from cell_data_processing import get_local_anisotropies
+from ..data_processing.image_drawing import draw_image_bw
+from ..data_processing.image_processing import image_envelope_props
+from ..data_processing.cell_data_processing import get_local_anisotropies
+#from image_drawing import draw_image_bw
+#from image_processing import image_envelope_props
+#from cell_data_processing import get_local_anisotropies
 
 
 # Find the change between the lengths of non-infected bacteria at each timestep

@@ -4,7 +4,8 @@ from PIL import Image, ImageDraw
 import matplotlib
 import matplotlib.pyplot as plt
 
-from cell_data_processing import get_patch_numbers, get_patch_orientations, get_local_anisotropies
+from .cell_data_processing import get_patch_numbers, get_patch_orientations, get_local_anisotropies
+#from cell_data_processing import get_patch_numbers, get_patch_orientations, get_local_anisotropies
 
 def draw_cell(draw, center_x, center_y, length, radius, orientation, fill, outline):
     # angle conversion needed so that 

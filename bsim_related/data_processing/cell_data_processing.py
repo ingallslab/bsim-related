@@ -3,7 +3,8 @@ import numpy as np
 import math
 import scipy.linalg as la
 
-from cell_contact import determine_contact
+from .cell_contact import determine_contact
+#from cell_contact import determine_contact
 
 # in radians; make this a function parameter
 orientation_threshold = 0.07

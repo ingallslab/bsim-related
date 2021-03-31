@@ -3,9 +3,14 @@ import numpy as np
 from statistics import mean
 import skimage.io, skimage.filters, skimage.util
 
-from image_drawing import draw_image_bw
-from image_processing import image_envelope_props
-from cell_data_processing import get_local_anisotropies
+import os, sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from bsim_related.data_processing.image_drawing import draw_image_bw
+from bsim_related.data_processing.image_processing import image_envelope_props
+from bsim_related.data_processing.cell_data_processing import get_local_anisotropies
+#from image_drawing import draw_image_bw
+#from image_processing import image_envelope_props
+#from cell_data_processing import get_local_anisotropies
 
 # The radius used by get_local_anisotropies to decide if a neighbour is in range
 radius = 60

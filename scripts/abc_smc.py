@@ -1,11 +1,4 @@
 # Approximate Bayesian Computation
-
-import inferParameters
-import plotter
-from abcsysbio import EpsilonSchedule
-from abcsysbio import kernels
-from abcsysbio import statistics
-
 import subprocess
 import os
 import math
@@ -16,6 +9,16 @@ from pathlib import Path
 import numpy as np
 from numpy import random as rnd
 import scipy.stats as st
+
+#from abcsysbio import EpsilonSchedule
+#from abcsysbio import kernels
+#from abcsysbio import statistics
+#import inferParameters
+#import plotter
+
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from bsim_related.abc_smc import inferParameters, plotter, EpsilonSchedule, kernels, statistics
 
 class abcsmc:
 

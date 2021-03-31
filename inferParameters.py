@@ -58,28 +58,8 @@ def getElongationRate(data, time_step):
 
     return avg_elongation_rates
 
-# TO-DO: think of better way to detect division
-def getDivisionThreshold_v2(LengthColTitle, data, ObjectNumberTitle, ImageNumberTitle,):
-    final_cell_count = data.at[data.shape[0] - 1, ObjectNumberTitle]
-    cell_division_lengths = [[] for i in range(final_cell_count)]
-    prev_cell_lengths = []
 
-    for image_number in range(1, image_count + 1):
-        df = data[data[ImageNumberTitle] == image_number]
-        curr_cell_lengths = df[LengthColTitle]
-        min_count = min(len(prev_cell_lengths), len(curr_cell_lengths)) ## check whether min should be used or not 
-
-        if ( len(curr_cell_lengths) > len(prev_cell_lengths) ):
-            for i in range(min_count):
-                percent_change = ( curr_cell_lengths[i] - prev_cell_lengths[i] ) / prev_cell_lengths[i]
-                if (percent_change <= -0.3):
-                    cell_division_lengths[i].append(prev_cell_lengths[i])
-                    #print("prev_length")
-                    #print(prev_cell_lengths[i])
-        
-        prev_cell_lengths = curr_cell_lengths
-
-# Find the length of the bacteria before the population increases and the length of the bacteria decreases by 15%
+# Find the length of the bacteria before the population increases and the length of the bacteria decreases by 5%
 def getDivisionThreshold(data):
     obj_count = data.at[data.shape[0] - 1, "ObjectNumber"]
     
@@ -233,20 +213,24 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)
 
         # Check if length dataframe was valid
-        if (avg_bsim_elongation_rates == -1 or avg_bsim_division_lengths == -1 or avg_cp_elongation_rates == -1 or avg_cp_division_lengths == -1):
+        if (avg_bsim_elongation_rates == -1 or avg_bsim_division_lengths == -1 or avg_cp_elongation_rates == -1 or avg_cp_division_lengths == -1
+            or anisotropies_bsim == -1 or anisotropies_cp == -1):
             print("Invalid dataframe for length")
             return -1, -1, -1, -1, -1
 
         # Remove zeros from plots and calculations
         non_zero_bsim_elongation = [i for i in avg_bsim_elongation_rates if i != "-"]
         non_zero_bsim_division = [i for i in avg_bsim_division_lengths if i != "-"]
+        non_zero_bsim_aniso = [i for i in anisotropies_bsim if i != "-"]
         non_zero_cp_elongation = [i for i in avg_cp_elongation_rates if i != "-"]
         non_zero_cp_division = [i for i in avg_cp_division_lengths if i != "-"]
+        non_zero_cp_aniso = [i for i in anisotropies_cp if i != "-"]
+        
 
         # Finds the Wasserstein distance between two distributions
         ws_elongation = wasserstein_distance(non_zero_bsim_elongation, non_zero_cp_elongation)
         ws_division = wasserstein_distance(non_zero_bsim_division, non_zero_cp_division)
-        ws_local_anisotropies = wasserstein_distance(anisotropies_bsim, anisotropies_cp)
+        ws_local_anisotropies = wasserstein_distance(non_zero_bsim_aniso, non_zero_cp_aniso)
         aspect_ratio_diff = aspect_ratio_bsim - aspect_ratio_cp
         density_parameter_diff = density_parameter_bsim - density_parameter_cp
 
@@ -261,6 +245,8 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
                     "WsElongation", "WsDivision", "WsLocalAnisotropies", "AspectRatioDiff", "DensityParamDiff"]
             data = []
 
+            #print("len(anisotropies_bsim): ", len(anisotropies_bsim))
+            #print("obj_count + 1: ", obj_count + 1)
             for obj_number in range(1, obj_count + 1):
                 row = [obj_number]
                 row.append(avg_bsim_elongation_rates[obj_number - 1])
@@ -268,6 +254,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
                 row.append(avg_bsim_division_lengths[obj_number - 1])
                 row.append(avg_cp_division_lengths[obj_number - 1])
 
+                #print("obj_number - 1: ", obj_number - 1)
                 row.append(anisotropies_bsim[obj_number - 1])
                 row.append(anisotropies_cp[obj_number - 1])
                 row.append(aspect_ratio_bsim)
@@ -300,7 +287,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         # -------------------------- Plot the distributions -------------------------------------
         if ( export_plots ):
             obj_count = min(cp_data["ObjectNumber"].iat[-1],bsim_data["ObjectNumber"].iat[-1])
-            print("obj_count: ", obj_count)
+            #print("obj_count: ", obj_count)
 
             plot_folder = "Plots_" + str(current_params)
             

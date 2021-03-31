@@ -34,6 +34,7 @@ class abcsmc:
         self.prior = prior
         self.first_epsilon = first_epsilon
         self.final_epsilon = final_epsilon
+        self.epsilon_schedule = [self.first_epsilon]
         self.alpha = alpha
         self.n_par = n_par
         self.n_pop = n_pop
@@ -101,6 +102,7 @@ class abcsmc:
                 pert_params.append(pert)
 
                 ind += 1
+         
 
         return pert_params
 
@@ -160,15 +162,13 @@ class abcsmc:
         if ( pop > 1 and self.alpha < 0.90 and self.alpha > 0.1):
             if ( 100*((self.acceptance_rates[pop] - self.acceptance_rates[pop -1])/self.acceptance_rates[pop - 1]) < -40):
                 self.alpha += 0.05
-            elif ( 100*((self.acceptance_rates[pop] - self.acceptance_rates[pop -1])/self.acceptance_rates[pop - 1]) < 40):
+            elif ( 100*((self.acceptance_rates[pop] - self.acceptance_rates[pop -1])/self.acceptance_rates[pop - 1]) > 40):
                 self.alpha -= 0.05
             print("self.alpha: ", self.alpha)
 
         prev_dist = np.sort(self.prev_distances, axis = 0) # Sort on the vertical 
         ntar = int(self.alpha * self.n_par)
-        #print("prev_distances: ", self.prev_distances)
-        #print("prev_dist: ", prev_dist)
-        #print("prev_distances[ntar]: ", self.prev_distances[ntar])
+        
 
         # Get the new epsilon from the total distance
         new_epsilon = round(prev_dist[ntar, total_dist_ind], 3)
@@ -184,7 +184,10 @@ class abcsmc:
         else:
             end = False
 
-        print("end: ", end, "new_epsilon: ", new_epsilon)
+        # Update epsilon schedule
+        self.epsilon_schedule.append(new_epsilon)
+
+        
         return end, new_epsilon
 
     # Runs using a fixed epsilon schedule
@@ -192,15 +195,15 @@ class abcsmc:
 
         tol_type = epsilon_type
         n_iter = self.n_pop
-        epsilonSchedule = EpsilonSchedule.EpsilonSchedule(tol_type, self.final_epsilon, self.first_epsilon, n_iter).tol
-        print("epsilonSchedule: ", epsilonSchedule)
+        self.epsilon_schedule = EpsilonSchedule.EpsilonSchedule(tol_type, self.final_epsilon, self.first_epsilon, n_iter).tol
+        print("epsilon_schedule: ", self.epsilon_schedule)
 
-        for pop in range(0, len(epsilonSchedule)):
+        for pop in range(0, len(self.epsilon_schedule)):
 
-            if ( pop == len(epsilonSchedule) - 1):
-                curr_pop, curr_dist = self.iterate_population(epsilonSchedule[pop], pop, True, True)
+            if ( pop == len(self.epsilon_schedule) - 1):
+                curr_pop, curr_dist = self.iterate_population(self.epsilon_schedule[pop], pop, False, False)
             else:
-                curr_pop, curr_dist = self.iterate_population(epsilonSchedule[pop], pop, False, False)
+                curr_pop, curr_dist = self.iterate_population(self.epsilon_schedule[pop], pop, False, False)
 
             # Add current population of accepted particles to total parameters
             self.parameters.append(curr_pop)
@@ -213,7 +216,7 @@ class abcsmc:
     def run_auto(self):
         running = True
         final = False
-        epsilon = self.first_epsilon
+        epsilon = [self.first_epsilon]
         pop = 0
 
         while (running):
@@ -333,21 +336,53 @@ class abcsmc:
 
         return curr_population, curr_distances
 
+    # Find the error between the median parameter of every population and the true value
+    def get_error(self):
+        n_pop = len(self.parameters)
+        median_params = []
+        for i in range(0, n_pop):
+            sorted_params = np.sort(self.parameters[i], axis = 0)
+            ind = round(len(sorted_params)/2)
+            median_params.append(sorted_params[ind])
+
+        print("median_params: ", median_params)
+
+        c = 13.89
+        true_values = [1.23*c, 0.277*c, 7.0*c, 0.1*c]
+        errors = []
+        for i in range(0, len(median_params)):
+            error = 0
+            for j in range(0, len(true_values)):
+                error += ( median_params[i][j] - true_values[j] )**2
+                print(( median_params[i][j] - true_values[j] )**2)
+            errors.append(error)
+
+        print("errors: ", errors)
+            
+        return errors, median_params
+
     # Save posterior to csv
     def save_data(self):
 
         pop_length = len(self.parameters) 
-        print(pop_length)
             
-        cols = ["Population", "Particles", "ElongationMean", "ElongationStdv", "DivisionMean", "DivisionStdv", "TotalDist", "ElongationDist", "DivisionDist",
-                "LocalAnisotropyDist", "AspectRatioDiff", "DensityParamDiff"]
+        cols = ["Population", "Particles", "Epsilon", "Acceptance_Rate", "Median_Parameters", "Errors", "ElongationMean", "ElongationStdv", "DivisionMean",    
+                "DivisionStdv", "TotalDist", "ElongationDist", "DivisionDist", "LocalAnisotropyDist", "AspectRatioDiff", "DensityParamDiff"]
         data = []
+        errors, median_params = self.get_error()
 
-        n_particles = 1
+        
+        #n_particles = 1
         for t in range(1, pop_length + 1):
             for i in range(1, self.n_par + 1):
                 row = [t]
-                row.append(n_particles)
+                row.append(i)
+                print("t: ", t)
+                row.append(self.epsilon_schedule[t - 1])
+                row.append(self.acceptance_rates[t - 1])
+                row.append(median_params[t - 1])
+                row.append(errors[t - 1])
+                
                 row.append(self.parameters[t - 1][i - 1][0])
                 row.append(self.parameters[t - 1][i - 1][1])
                 row.append(self.parameters[t - 1][i - 1][2])
@@ -360,7 +395,7 @@ class abcsmc:
                 row.append(self.distances[t - 1][i - 1][4])
                 row.append(self.distances[t - 1][i - 1][5])
 
-                n_particles += 1
+                #n_particles += 1
 
                 # Add row
                 data.append(row)
@@ -399,10 +434,13 @@ class abcsmc:
         # Plot the acceptance rate
         plotter.plotAcceptance(param_data, self.acceptance_rates, plot_folder)
 
+        # Plot the posterior kde for each parameter
+        plotter.plotPostKde(param_data, plot_folder, self.prior, params)
+
 def main():
     # Define epsilon schedule
-    first_epsilon = 40
-    final_epsilon = 6#5.5
+    first_epsilon = 40#14
+    final_epsilon = 12#6#5.5
 
     # Define range for input
     el_mean_bounds = [10, 20]#[14, 20]           
@@ -412,7 +450,7 @@ def main():
     prior = [el_mean_bounds, el_stdv_bounds, div_mean_bounds, div_stdv_bounds]
 
     # Number of populations
-    n_pop = 5#2
+    n_pop = 2#2
     # Number of particles for each population
     n_par = 6#10
     # Number of parameters in each particle

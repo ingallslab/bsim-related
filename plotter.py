@@ -22,14 +22,59 @@ def pairPlot(df, plot_folder, params, kind, graph_title):
     df_posterior = df[df["Population"] == n_pop]
     df_params = df_posterior[params]
 
+    '''# Scale the values
+    for i in range(0, len(params)):
+        df_params[params[i]] /= df_params[params[i]].mean()
+    print("df_params:\n", df_params)'''
+
     # Plot
     sns.pairplot(df_params, kind = kind)
-    #sns.set(xlim = (0,100), ylim = (0,100))
         
     # Save plot
     title = graph_title + ".png"
     plt.savefig(plot_path/title)
 
+    plt.show()
+    plt.close()
+
+    # Plot
+    g = sns.pairplot(df_params, diag_kind = kind)
+    g.map_lower(sns.kdeplot, levels = 4, color = ".2")
+        
+    # Save plot
+    title = "lower_kde" + ".png"
+    plt.savefig(plot_path/title)
+
+    #plt.show()
+    plt.close()
+
+# Plots the kde of the posterior for each parameter
+def plotPostKde(df, plot_folder, prior, params):
+    # If folder doesn't exist, create new folder "Posterior_Plots" to store the png files
+    plot_path = Path(__file__).parent.absolute()/'Posterior_Plots'/plot_folder
+    if not os.path.exists(plot_path):
+        os.makedirs(plot_path)
+    
+    # Obtain the posterior
+    n_pop = df.at[df.shape[0] - 1, "Population"]
+    df_posterior = df[df["Population"] == n_pop]
+    df_params = df_posterior[params]
+
+    fig, ax = plt.subplots()
+
+    for i in range(0, len(params)):
+        scaled_data = df_posterior[params[i]]/df_posterior[params[i]].mean()
+        g = sns.kdeplot(data = scaled_data, ax = ax, label = params[i])
+    g.set(xlabel = None)
+                
+    ax.legend(loc = "upper right")
+    plt.title("Posterior Parameter Kde")
+    #fig.tight_layout()
+                
+    # Save plot
+    title = "Posterior_Kde" + ".png"
+    plt.savefig(plot_path/title)
+                
     plt.show()
     plt.close()
 

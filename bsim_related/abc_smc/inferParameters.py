@@ -16,46 +16,50 @@ from ..data_processing.cell_data_processing import get_local_anisotropies
 #from image_processing import image_envelope_props
 #from cell_data_processing import get_local_anisotropies
 
-
 # Find the change between the lengths of non-infected bacteria at each timestep
 def getElongationRate(data, time_step):
     # Get the total number of objects in the simulation
-    obj_count = data.at[data.shape[0] - 1, "ObjectNumber"]
+    obj_count = data["ObjectNumber"].iloc[-1]
     
     # Store the average elongation rate for each bacteria
     avg_elongation_rates = []
 
     # Loop through the number of objects
     for obj_number in range(1, obj_count + 1):
-        elongation_rates = []
-        
+        elongation_rates = []  # Elongation rates from birth to division for a cell
+        avg_life_rates = []    # Average elongation rate from birth to division for a cell
         df = data[data["ObjectNumber"] == obj_number]
 
+        # Get the first length and population
         if ( df["AreaShape_MajorAxisLength"].shape[0] == 0 ): 
-            print("df_bsim[AreaShape_MajorAxisLength].shape: ", df["AreaShape_MajorAxisLength"].shape)
             print("IndexError: index 0 is out of bounds for axis 0 with size 0")
             return -1
         else:
             prev_length = df["AreaShape_MajorAxisLength"].iat[0]
+            first_image = data["ImageNumber"].iloc[0]
+            prev_pop = data[data["ImageNumber"] == first_image]["ObjectNumber"].iloc[-1]
 
         for row in df.itertuples():
-
-            # To account only for elongation events ( should be positive; disregard changes in length during division and infection )
             change_in_length = row.AreaShape_MajorAxisLength - prev_length
-            if ( change_in_length > 0 ):
+            curr_pop = data[data["ImageNumber"] == row.ImageNumber]["ObjectNumber"].iloc[-1]
+
+            # Check for division
+            if ( change_in_length < 0 and curr_pop > prev_pop ):
+                if (len(elongation_rates) > 0):
+                    avg_life_rates.append( sum(elongation_rates)/len(elongation_rates) )
+                    elongation_rates = []
+
+            # Elongation events should be positive; disregard changes in length during division and infection 
+            elif ( change_in_length > 0 ):
                 elongation_rates.append(change_in_length / time_step)
 
             # Update previous values
             prev_length = row.AreaShape_MajorAxisLength
+            prev_pop = curr_pop
 
         # Find the average elongation rate for a bacterium
-        avg_elongation = 0.0
-        if ( len(elongation_rates) > 0 ) :
-            for i in range (0, len(elongation_rates)):
-                avg_elongation = avg_elongation + elongation_rates[i]
-            avg_elongation = avg_elongation / len(elongation_rates)
-
-            avg_elongation_rates.append(avg_elongation)
+        if ( len(avg_life_rates) > 0 ) :
+            avg_elongation_rates.append( sum(avg_life_rates)/len(avg_life_rates) )
         else:
             avg_elongation_rates.append("-")
 
@@ -72,7 +76,6 @@ def getDivisionThreshold(data):
 
     for image_num in range(1, n_images + 1):
         df_image = data[data["ImageNumber"] == image_num]
-        #print("df_image[].shape[0]: ", df_image.shape[0])
         if (df_image.shape[0] == 0):
             return -1
         else:
@@ -91,26 +94,18 @@ def getDivisionThreshold(data):
             prev_pop = pop[0]
 
         division_lengths = []
-        
         for row in df.itertuples():
-            percent_change = ( row.AreaShape_MajorAxisLength - prev_length ) / prev_length
-            if ( pop[row.ImageNumber - 1] > prev_pop and percent_change <= -0.15 ):
+            if ( pop[row.ImageNumber - 1] > prev_pop and row.AreaShape_MajorAxisLength - prev_length < 0 ):
                 # Get the division length
                 division_lengths.append(prev_length)
-                #print("prev_length: ", prev_length)
 
             # Update previous values
             prev_length = row.AreaShape_MajorAxisLength
             prev_pop = pop[row.ImageNumber - 1]
 
         # Find the average division threshold for a bacterium
-        avg_division_length = 0.0
         if ( len(division_lengths) > 0 ):
-            for i in range (0, len(division_lengths)):
-                avg_division_length = avg_division_length + division_lengths[i]
-            avg_division_length = avg_division_length / len(division_lengths)
-
-            avg_division_lengths.append(avg_division_length)
+            avg_division_lengths.append( sum(division_lengths) / len(division_lengths) )
         else:
             avg_division_lengths.append("-")
 
@@ -164,11 +159,10 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     bsim_folder_name = "params_" + current_params[0] + "_" + current_params[1] + "_" + current_params[2] + "_" + current_params[3]
     
     # Get data from the csv file
-    bsim_path = Path(__file__).parent.absolute()/'PhageFieldSims'/bsim_folder_name/bsim_file
-    #bsim_path = Path(__file__).parent.absolute()/'PhageFieldSims'/bsim_file   #testing#
+    bsim_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/'PhageFieldSims'/bsim_folder_name/bsim_file
     bsim_data = pandas.read_csv(bsim_path, index_col = False) # force pandas to not use the first column as the index
 
-    cp_path = Path(__file__).parent.absolute()/'PhageFieldSims'/cp_file
+    cp_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/'PhageFieldSims'/cp_file
     cp_data = pandas.read_csv(cp_path, index_col = False)     # force pandas to not use the first column as the index
     
     print(bsim_data)
@@ -178,7 +172,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     if (not bsim_data.empty and not cp_data.empty):
         
         # Infer BSim Simulations
-        bsim_time_step = 0.5#0.03#0.5    # in hours
+        bsim_time_step = 0.5        # in hours
         avg_bsim_elongation_rates = getElongationRate(bsim_data, bsim_time_step)
         avg_bsim_division_lengths = getDivisionThreshold(bsim_data)
 
@@ -197,7 +191,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         aspect_ratio_bsim, density_parameter_bsim = image_envelope_props(image_bsim)
 
         # Infer Real Simulations
-        cp_time_step = 0.5#2/60#0.5     # in hours
+        cp_time_step = 0.5#2/60     # in hours
         avg_cp_elongation_rates = getElongationRate(cp_data, cp_time_step)
         avg_cp_division_lengths = getDivisionThreshold(cp_data)
 
@@ -216,50 +210,48 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)
 
         # Check if length dataframe was valid
-        if (avg_bsim_elongation_rates == -1 or avg_bsim_division_lengths == -1 or avg_cp_elongation_rates == -1 or avg_cp_division_lengths == -1
-            or anisotropies_bsim == -1 or anisotropies_cp == -1):
+        if (avg_bsim_elongation_rates == -1 or avg_bsim_division_lengths == -1 or avg_cp_elongation_rates == -1 or avg_cp_division_lengths == -1):
             print("Invalid dataframe for length")
             return -1, -1, -1, -1, -1
 
         # Remove zeros from plots and calculations
         non_zero_bsim_elongation = [i for i in avg_bsim_elongation_rates if i != "-"]
         non_zero_bsim_division = [i for i in avg_bsim_division_lengths if i != "-"]
-        non_zero_bsim_aniso = [i for i in anisotropies_bsim if i != "-"]
         non_zero_cp_elongation = [i for i in avg_cp_elongation_rates if i != "-"]
         non_zero_cp_division = [i for i in avg_cp_division_lengths if i != "-"]
-        non_zero_cp_aniso = [i for i in anisotropies_cp if i != "-"]
         
-
         # Finds the Wasserstein distance between two distributions
         ws_elongation = wasserstein_distance(non_zero_bsim_elongation, non_zero_cp_elongation)
         ws_division = wasserstein_distance(non_zero_bsim_division, non_zero_cp_division)
-        ws_local_anisotropies = wasserstein_distance(non_zero_bsim_aniso, non_zero_cp_aniso)
+        ws_local_anisotropies = wasserstein_distance(anisotropies_bsim, anisotropies_cp)
         aspect_ratio_diff = aspect_ratio_bsim - aspect_ratio_cp
         density_parameter_diff = density_parameter_bsim - density_parameter_cp
 
         # -------------------------------- Data to csv  ---------------------------------------
         if ( export_data ):
-            obj_count = min(cp_data.at[cp_data.shape[0] - 1, "ObjectNumber"],
+            '''obj_count = min(cp_data.at[cp_data.shape[0] - 1, "ObjectNumber"],
                                 bsim_data.at[bsim_data.shape[0] - 1, "ObjectNumber"])
-            #print(obj_count)
+            print(obj_count)'''
+            obj_count = min(cp_data["ObjectNumber"].iloc[-1], bsim_data["ObjectNumber"].iloc[-1])
+            print("obj_count: ", obj_count)
                 
             cols = ["ObjectNumber", "BSimElongationRate", "CPElongationRate", "BSimDivisionThreshold", "CPDivisionThreshold",
                     "BSimAnisotropies", "CPAnisotropies", "BSimAspectRatio", "CPAspectRatio", "BSimDensityParam", "CPDensityParam",
                     "WsElongation", "WsDivision", "WsLocalAnisotropies", "AspectRatioDiff", "DensityParamDiff"]
             data = []
 
-            #print("len(anisotropies_bsim): ", len(anisotropies_bsim))
-            #print("obj_count + 1: ", obj_count + 1)
-            for obj_number in range(1, obj_count + 1):
-                row = [obj_number]
-                row.append(avg_bsim_elongation_rates[obj_number - 1])
-                row.append(avg_cp_elongation_rates[obj_number - 1])
-                row.append(avg_bsim_division_lengths[obj_number - 1])
-                row.append(avg_cp_division_lengths[obj_number - 1])
+            print("len(anisotropies_bsim): ", len(anisotropies_bsim))
+            print("obj_count: ", obj_count)
+            for obj_number in range(0, obj_count):
+                row = [obj_number + 1]
+                row.append(avg_bsim_elongation_rates[obj_number])
+                row.append(avg_cp_elongation_rates[obj_number])
+                row.append(avg_bsim_division_lengths[obj_number])
+                row.append(avg_cp_division_lengths[obj_number])
 
-                #print("obj_number - 1: ", obj_number - 1)
-                row.append(anisotropies_bsim[obj_number - 1])
-                row.append(anisotropies_cp[obj_number - 1])
+                print("obj_number - 1: ", obj_number)
+                row.append(anisotropies_bsim[obj_number])
+                row.append(anisotropies_cp[obj_number])
                 row.append(aspect_ratio_bsim)
                 row.append(aspect_ratio_cp)
                 row.append(density_parameter_bsim)
@@ -316,8 +308,6 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     # Return the wasserstein distances
     return ws_elongation, ws_division, ws_local_anisotropies, aspect_ratio_diff, density_parameter_diff
 
-#run('BSim_Simulation.csv', 'BSim_Simulation_1.23_0.277_7.0_0.1-6.5.csv', 'real_data_01', True, True)
-#run('BSim_Simulation-0.03-1.csv', 'MyExpt_filtered_objects_2.csv', 'real_data_01', True, True)
 
 
 

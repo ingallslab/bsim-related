@@ -68,7 +68,7 @@ for image_number in range(1, image_count + 1):
     cell_centers_x_cp = df_cp["AreaShape_Center_X"]
     cell_centers_y_cp = df_cp["AreaShape_Center_Y"]
     # uses major and minor axis length for length and radius
-    cell_lengths_cp = df_cp["AreaShape_MajorAxisLength"] - df_bsim["AreaShape_MinorAxisLength"]
+    cell_lengths_cp = df_cp["AreaShape_MajorAxisLength"] - df_cp["AreaShape_MinorAxisLength"]
     cell_radii_cp = df_cp["AreaShape_MinorAxisLength"] / 2
     cell_orientations_cp = df_cp["AreaShape_Orientation"]
 

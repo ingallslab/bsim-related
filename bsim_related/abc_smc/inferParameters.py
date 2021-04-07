@@ -8,6 +8,8 @@ from matplotlib import pyplot as plt
 from scipy.stats import wasserstein_distance
 from pathlib import Path
 import os
+from statistics import mean
+#import time
 
 from ..data_processing.image_drawing import draw_image_bw
 from ..data_processing.image_processing import image_envelope_props
@@ -164,11 +166,11 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     bsim_folder_name = "params_" + current_params[0] + "_" + current_params[1] + "_" + current_params[2] + "_" + current_params[3]
     
     # Get data from the csv file
-    bsim_path = Path(__file__).parent.absolute()/'PhageFieldSims'/bsim_folder_name/bsim_file
+    bsim_path = Path(__file__).parent.parent.parent.absolute()/'PhageFieldSims'/bsim_folder_name/bsim_file
     #bsim_path = Path(__file__).parent.absolute()/'PhageFieldSims'/bsim_file   #testing#
     bsim_data = pandas.read_csv(bsim_path, index_col = False) # force pandas to not use the first column as the index
 
-    cp_path = Path(__file__).parent.absolute()/'PhageFieldSims'/cp_file
+    cp_path = Path(__file__).parent.parent.parent.absolute()/'PhageFieldSims'/cp_file
     cp_data = pandas.read_csv(cp_path, index_col = False)     # force pandas to not use the first column as the index
     
     print(bsim_data)
@@ -182,7 +184,56 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         avg_bsim_elongation_rates = getElongationRate(bsim_data, bsim_time_step)
         avg_bsim_division_lengths = getDivisionThreshold(bsim_data)
 
-        df_bsim = bsim_data[bsim_data["ImageNumber"] == bsim_data.at[bsim_data.shape[0] - 1, "ImageNumber"]]
+        # should be the same
+        image_count = min(cp_data.at[cp_data.shape[0] - 1, "ImageNumber"],
+                    bsim_data.at[bsim_data.shape[0] - 1, "ImageNumber"])
+        ws_local_anisotropies = []
+        aspect_ratio_diff = []
+        density_parameter_diff = []
+        for image_number in range(1, image_count + 1):
+            df_bsim = bsim_data[bsim_data["ImageNumber"] == image_number]
+            df_bsim.reset_index(drop = True, inplace = True)
+            df_cp = cp_data[cp_data["ImageNumber"] == image_number]
+            df_cp.reset_index(drop = True, inplace = True)
+
+            cell_centers_x_bsim = df_bsim["AreaShape_Center_X"]
+            cell_centers_y_bsim = df_bsim["AreaShape_Center_Y"]
+            # uses major and minor axis length for length and radius
+            cell_lengths_bsim = df_bsim["AreaShape_MajorAxisLength"] - df_bsim["AreaShape_MinorAxisLength"]
+            cell_radii_bsim = df_bsim["AreaShape_MinorAxisLength"] / 2
+            cell_orientations_bsim = df_bsim["AreaShape_Orientation"]
+
+            anisotropies_bsim = get_local_anisotropies(cell_centers_x_bsim, cell_centers_y_bsim, cell_orientations_bsim, radius = 60) # set range as 60 for now
+            # store image_dimensions as a variable
+            image_bsim = np.array( draw_image_bw((1870, 2208), cell_centers_x_bsim, cell_centers_y_bsim, cell_lengths_bsim, cell_radii_bsim, cell_orientations_bsim) )
+            aspect_ratio_bsim, density_parameter_bsim = image_envelope_props(image_bsim)
+
+            cell_centers_x_cp = df_cp["AreaShape_Center_X"]
+            cell_centers_y_cp = df_cp["AreaShape_Center_Y"]
+            # uses major and minor axis length for length and radius
+            cell_lengths_cp = df_cp["AreaShape_MajorAxisLength"] - df_cp["AreaShape_MinorAxisLength"]
+            cell_radii_cp = df_cp["AreaShape_MinorAxisLength"] / 2
+            cell_orientations_cp = df_cp["AreaShape_Orientation"]
+
+            anisotropies_cp = get_local_anisotropies(cell_centers_x_cp, cell_centers_y_cp, cell_orientations_cp, radius = 60) # set range as 60 for now
+            # change to actual image when we have real data, store image_dimensions as a variable
+            image_cp = np.array( draw_image_bw((1870, 2208), cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
+            aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)
+
+            #non_zero_bsim_aniso = [i for i in anisotropies_bsim if i != "-"]
+            #non_zero_cp_aniso = [i for i in anisotropies_cp if i != "-"]
+            ws_local_anisotropies.append(wasserstein_distance(anisotropies_bsim, anisotropies_cp))
+            aspect_ratio_diff.append(aspect_ratio_bsim - aspect_ratio_cp)
+            density_parameter_diff.append(density_parameter_bsim - density_parameter_cp)
+
+        print(ws_local_anisotropies)
+        print(aspect_ratio_diff)
+        print(density_parameter_diff)
+        ws_local_anisotropies = mean(ws_local_anisotropies)
+        aspect_ratio_diff = mean(aspect_ratio_diff)
+        density_parameter_diff = mean(density_parameter_diff)
+        
+        '''
         df_bsim.reset_index(drop = True, inplace = True)
         cell_centers_x_bsim = df_bsim["AreaShape_Center_X"]
         cell_centers_y_bsim = df_bsim["AreaShape_Center_Y"]
@@ -193,49 +244,49 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         
         anisotropies_bsim = get_local_anisotropies(cell_centers_x_bsim, cell_centers_y_bsim, cell_orientations_bsim, radius = 60) # set range as 60 for now
         # store image_dimensions as a variable
-        image_bsim = np.array( draw_image_bw((1000, 1000), cell_centers_x_bsim, cell_centers_y_bsim, cell_lengths_bsim, cell_radii_bsim, cell_orientations_bsim) )
+        image_bsim = np.array( draw_image_bw((1870, 2208), cell_centers_x_bsim, cell_centers_y_bsim, cell_lengths_bsim, cell_radii_bsim, cell_orientations_bsim) )
         aspect_ratio_bsim, density_parameter_bsim = image_envelope_props(image_bsim)
+        '''
 
         # Infer Real Simulations
         cp_time_step = 0.5#2/60#0.5     # in hours
         avg_cp_elongation_rates = getElongationRate(cp_data, cp_time_step)
         avg_cp_division_lengths = getDivisionThreshold(cp_data)
 
+        '''
         df_cp = cp_data[cp_data["ImageNumber"] == cp_data.at[cp_data.shape[0] - 1, "ImageNumber"]]
         df_cp.reset_index(drop = True, inplace = True)
         cell_centers_x_cp = df_cp["AreaShape_Center_X"]
         cell_centers_y_cp = df_cp["AreaShape_Center_Y"]
         # uses major and minor axis length for length and radius
-        cell_lengths_cp = df_cp["AreaShape_MajorAxisLength"] - df_bsim["AreaShape_MinorAxisLength"]
+        cell_lengths_cp = df_cp["AreaShape_MajorAxisLength"] - df_cp["AreaShape_MinorAxisLength"]
         cell_radii_cp = df_cp["AreaShape_MinorAxisLength"] / 2
         cell_orientations_cp = df_cp["AreaShape_Orientation"]
 
         anisotropies_cp = get_local_anisotropies(cell_centers_x_cp, cell_centers_y_cp, cell_orientations_cp, radius = 60) # set range as 60 for now
         # change to actual image when we have real data, store image_dimensions as a variable
-        image_cp = np.array( draw_image_bw((1000, 1000), cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
+        image_cp = np.array( draw_image_bw((1870, 2208), cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
         aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)
+        '''
 
         # Check if length dataframe was valid
-        if (avg_bsim_elongation_rates == -1 or avg_bsim_division_lengths == -1 or avg_cp_elongation_rates == -1 or avg_cp_division_lengths == -1
-            or anisotropies_bsim == -1 or anisotropies_cp == -1):
+        if (avg_bsim_elongation_rates == -1 or avg_bsim_division_lengths == -1 or avg_cp_elongation_rates == -1 or avg_cp_division_lengths == -1):
             print("Invalid dataframe for length")
             return -1, -1, -1, -1, -1
-
+        
         # Remove zeros from plots and calculations
         non_zero_bsim_elongation = [i for i in avg_bsim_elongation_rates if i != "-"]
         non_zero_bsim_division = [i for i in avg_bsim_division_lengths if i != "-"]
-        non_zero_bsim_aniso = [i for i in anisotropies_bsim if i != "-"]
         non_zero_cp_elongation = [i for i in avg_cp_elongation_rates if i != "-"]
         non_zero_cp_division = [i for i in avg_cp_division_lengths if i != "-"]
-        non_zero_cp_aniso = [i for i in anisotropies_cp if i != "-"]
         
 
         # Finds the Wasserstein distance between two distributions
         ws_elongation = wasserstein_distance(non_zero_bsim_elongation, non_zero_cp_elongation)
         ws_division = wasserstein_distance(non_zero_bsim_division, non_zero_cp_division)
-        ws_local_anisotropies = wasserstein_distance(non_zero_bsim_aniso, non_zero_cp_aniso)
-        aspect_ratio_diff = aspect_ratio_bsim - aspect_ratio_cp
-        density_parameter_diff = density_parameter_bsim - density_parameter_cp
+        #ws_local_anisotropies = wasserstein_distance(non_zero_bsim_aniso, non_zero_cp_aniso)
+        #aspect_ratio_diff = aspect_ratio_bsim - aspect_ratio_cp
+        #density_parameter_diff = density_parameter_bsim - density_parameter_cp
 
         # -------------------------------- Data to csv  ---------------------------------------
         if ( export_data ):
@@ -318,24 +369,4 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
 
 #run('BSim_Simulation.csv', 'BSim_Simulation_1.23_0.277_7.0_0.1-6.5.csv', 'real_data_01', True, True)
 #run('BSim_Simulation-0.03-1.csv', 'MyExpt_filtered_objects_2.csv', 'real_data_01', True, True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

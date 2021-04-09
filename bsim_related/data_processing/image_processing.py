@@ -2,6 +2,7 @@ import pandas
 import numpy as np
 import skimage.morphology, skimage.measure
 #import skimage.io, skimage.filters, skimage.util
+import cv2
 
 r"""
 # Helper function: Uses the binary image of the microcolony to find the properties of the contour based envelope of the microcolony
@@ -30,7 +31,7 @@ def binary_image_envelope_props(binary_image):
 # Precondition: image should be a 2D numpy array with datatype as np.uint8 (i.e. in 8-bit greyscale format)
 #               all pixels should be either fully black (for the background) or white (for cells) image 
 #               (i.e. there should be no pixels that have values other than 0 and 255)
-def image_envelope_props(image):
+def image_envelope_props_inefficient(image):
     # perform morphological closing to get rid of any gaps
     image_close = skimage.morphology.closing(image)
     # get contours
@@ -51,6 +52,19 @@ def image_envelope_props(image):
     else:
         return False
     '''
+    return average_aspect_ratio, density_parameter
+
+def image_envelope_props(image):
+    # perform morphological closing to get rid of any gaps
+    image_close = skimage.morphology.closing(image, selem = np.ones((7,7), dtype='uint8'))
+    # get contours
+    contours, hierarchy = cv2.findContours(np.copy(image_close), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # fill contours so that the image is a filled envelope of the microcolony
+    image_close = cv2.drawContours(image_close, contours, -1, 255, cv2.FILLED)
+    # get properties of the envelope
+    image_props = pandas.DataFrame(skimage.measure.regionprops_table(image_close, properties = ["major_axis_length", "minor_axis_length", "area"]))
+    average_aspect_ratio = (image_props["minor_axis_length"] / image_props["major_axis_length"]).mean()
+    density_parameter = np.sum(image == 255) / image_props["area"].sum()
     return average_aspect_ratio, density_parameter
 
 r"""

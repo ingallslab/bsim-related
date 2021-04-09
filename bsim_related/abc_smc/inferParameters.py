@@ -157,11 +157,15 @@ def plotDifferences( data1, data2, label1, label2, objNum, title, plot_folder ):
 
 
 # Main Function
-def run(bsim_file, cp_file, current_params, export_data, export_plots):    
-    bsim_folder_name = "params_" + current_params[0] + "_" + current_params[1] + "_" + current_params[2] + "_" + current_params[3]
+def run(bsim_file, cp_file, current_params, export_data, export_plots):
+    # Find the newest folder created
+    folder_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/'PhageFieldSims'
+    folders = [os.path.join(folder_path, x) for x in os.listdir(folder_path)]
+    newest = max(folders, key = os.path.getctime)
+    #print("Newest modified", newest)
     
     # Get data from the csv file
-    bsim_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/'PhageFieldSims'/bsim_folder_name/bsim_file
+    bsim_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/'PhageFieldSims'/newest/bsim_file
     bsim_data = pandas.read_csv(bsim_path, index_col = False) # force pandas to not use the first column as the index
 
     cp_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/'PhageFieldSims'/cp_file
@@ -220,9 +224,9 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
             aspect_ratio_diff.append(aspect_ratio_bsim - aspect_ratio_cp)
             density_parameter_diff.append(density_parameter_bsim - density_parameter_cp)
 
-        print(ws_local_anisotropies)
+        '''print(ws_local_anisotropies)
         print(aspect_ratio_diff)
-        print(density_parameter_diff)
+        print(density_parameter_diff)'''
         ws_local_anisotropies = mean(ws_local_anisotropies)
         aspect_ratio_diff = mean(aspect_ratio_diff)
         density_parameter_diff = mean(density_parameter_diff)
@@ -256,7 +260,6 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         cell_lengths_cp = df_cp["AreaShape_MajorAxisLength"] - df_cp["AreaShape_MinorAxisLength"]
         cell_radii_cp = df_cp["AreaShape_MinorAxisLength"] / 2
         cell_orientations_cp = df_cp["AreaShape_Orientation"]
-
         anisotropies_cp = get_local_anisotropies(cell_centers_x_cp, cell_centers_y_cp, cell_orientations_cp, radius = 60) # set range as 60 for now
         # change to actual image when we have real data, store image_dimensions as a variable
         image_cp = np.array( draw_image_bw((1870, 2208), cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
@@ -283,9 +286,6 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
 
         # -------------------------------- Data to csv  ---------------------------------------
         if ( export_data ):
-            '''obj_count = min(cp_data.at[cp_data.shape[0] - 1, "ObjectNumber"],
-                                bsim_data.at[bsim_data.shape[0] - 1, "ObjectNumber"])
-            print(obj_count)'''
             obj_count = min(cp_data["ObjectNumber"].iloc[-1], bsim_data["ObjectNumber"].iloc[-1])
             print("obj_count: ", obj_count)
                 
@@ -361,5 +361,3 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
 
     # Return the wasserstein distances
     return ws_elongation, ws_division, ws_local_anisotropies, aspect_ratio_diff, density_parameter_diff
-
-

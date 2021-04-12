@@ -34,7 +34,13 @@ class abcsmc:
                  initial_pop,
                  sim_time,
                  bsim_data,
-                 cp_data):
+                 cp_data,
+                 bsim_jar,
+                 jars,
+                 driver_file,
+                 bsim_export_time,
+                 cp_export_time,
+                 sim_dim):
         self.prior = prior
         self.first_epsilon = first_epsilon
         self.final_epsilon = final_epsilon
@@ -48,6 +54,12 @@ class abcsmc:
         self.sim_time = sim_time
         self.bsim_data = bsim_data
         self.cp_data = cp_data
+        self.bsim_jar = bsim_jar
+        self.jars = jars
+        self.driver_file = driver_file
+        self.bsim_export_time = bsim_export_time
+        self.cp_export_time = cp_export_time
+        self.sim_dim = sim_dim
         
         self.kernel = []
         self.kernel_type = 2                                                        # component-wise normal kernel
@@ -75,12 +87,8 @@ class abcsmc:
     # Execute BSim simulation with given parameters
     def executeSimulation(self, curr_params):
         str_params = self.paramToString(curr_params)
-        
-        bsim_jar = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\legacy\\jars\\bsim-2021.jar"
-        jars = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\lib\\*"              # Gets all jars    
-        program_path = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\run\\BSimPhageLogger\\BSimPhageField.java"
-            
-        cmd = ["java", "-cp", bsim_jar + ";" + jars, program_path, "-pop", str(self.initial_pop), "-simt", str(self.sim_time)]
+
+        cmd = ["java", "-cp", self.bsim_jar + ";" + self.jars, self.driver_file, "-pop", str(self.initial_pop), "-simt", str(self.sim_time)]
         for i in range(0, len(str_params)):
             cmd.append(self.cmds[i])
             cmd.append(str_params[i])
@@ -293,7 +301,10 @@ class abcsmc:
                                                                                                                                        self.cp_data,
                                                                                                                                        self.paramToString(current_params),
                                                                                                                                        export_data,
-                                                                                                                                       export_plots)                
+                                                                                                                                       export_plots,
+                                                                                                                                       self.bsim_export_time,
+                                                                                                                                       self.cp_export_time,
+                                                                                                                                       self.sim_dim)                
             # Get the total distance
             total_dist = elongation_dist + division_dist + local_anisotropy_dist + abs(aspect_ratio_diff) + abs(density_parameter_diff)
             
@@ -510,26 +521,35 @@ def main():
     initial_pop = 1
     # BSim simulation time
     sim_time = 6.5
+    # BSim simulation time step (hr)
+    bsim_export_time = 0.5
+    # Experiment time step (hr)
+    cp_export_time = 0.5
+    # Simulation dimensions
+    sim_dim = (800, 600)  #(1870, 2208)
     
     # Simulation files
     bsim_data = "BSim_Simulation.csv"
-    cp_data = 'BSim_Simulation_1.23_0.277_7.0_0.1-6.5.csv'#'BSim_Simulation-0.5.csv'
+    cp_data = 'BSim_Exp_Data.csv'#'BSim_Simulation_1.23_0.277_7.0_0.1-6.5.csv'
+
+    # Paths and files required to run BSim
+    bsim_jar = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\legacy\\jars\\bsim-2021.jar"
+    jars = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\lib\\*"              # Gets all jars    
+    driver_file = 'BSimPhageLogger.BSimPhageField'
 
     # Parameters
     params = ["ElongationMean", "ElongationStdv", "DivisionMean", "DivisionStdv"]
-    '''
-    params = ["ElongationMean", "ElongationStdv", "DivisionMean", "DivisionStdv", "InternalForce", "CellCollisionForce",
-              "XForce", "StickingRange", "Twist", "Push"]
-    params = ["InternalForce", "CellCollisionForce", "XForce", "StickingRange", "Twist", "Push"]'''
+    #params = ["InternalForce", "CellCollisionForce", "XForce", "StickingRange", "Twist", "Push"]
+    
     # Commands to change BSim parameter values (should correspond to params array)
     cmds = ["-el_mean", "-el_stdv", "-div_mean", "-div_stdv"]
-    '''
-    cmds = ["-el_mean", "-el_stdv", "-div_mean", "-div_stdv", "-k_int", "-k_cell", "-k_stick", "-rng_stick", "-twist", "-push"]
-    cmds = ["-k_int", "-k_cell", "-k_stick", "-rng_stick", "-twist", "-push"]'''
+    #cmds = ["-k_int", "-k_cell", "-k_stick", "-rng_stick", "-twist", "-push"]
+    
     # Number of parameters in each particle
     n_params = len(params)
     
-    abc = abcsmc(cmds, prior, first_epsilon, final_epsilon, alpha, n_par, n_pop, n_params, initial_pop, sim_time, bsim_data, cp_data)
+    abc = abcsmc(cmds, prior, first_epsilon, final_epsilon, alpha, n_par, n_pop, n_params, initial_pop, sim_time, bsim_data, cp_data,
+                 bsim_jar, jars, driver_file, bsim_export_time, cp_export_time, sim_dim)
     abc.run_fixed(epsilon_type)
     #abc.run_auto()
     #abc.save_stats()

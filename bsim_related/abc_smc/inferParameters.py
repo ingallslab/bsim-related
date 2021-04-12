@@ -157,7 +157,7 @@ def plotDifferences( data1, data2, label1, label2, objNum, title, plot_folder ):
 
 
 # Main Function
-def run(bsim_file, cp_file, current_params, export_data, export_plots):
+def run(bsim_file, cp_file, current_params, export_data, export_plots, bsim_export_time, cp_export_time, sim_dim):
     # Find the newest folder created
     folder_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/'PhageFieldSims'
     folders = [os.path.join(folder_path, x) for x in os.listdir(folder_path)]
@@ -178,8 +178,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     if (not bsim_data.empty and not cp_data.empty):
         
         # Infer BSim Simulations
-        bsim_time_step = 0.5        # in hours
-        avg_bsim_elongation_rates = getElongationRate(bsim_data, bsim_time_step)
+        avg_bsim_elongation_rates = getElongationRate(bsim_data, bsim_export_time)
         avg_bsim_division_lengths = getDivisionThreshold(bsim_data)
 
         # should be the same
@@ -203,7 +202,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
 
             anisotropies_bsim = get_local_anisotropies(cell_centers_x_bsim, cell_centers_y_bsim, cell_orientations_bsim, radius = 60) # set range as 60 for now
             # store image_dimensions as a variable
-            image_bsim = np.array( draw_image_bw((1870, 2208), cell_centers_x_bsim, cell_centers_y_bsim, cell_lengths_bsim, cell_radii_bsim, cell_orientations_bsim) )
+            image_bsim = np.array( draw_image_bw(sim_dim, cell_centers_x_bsim, cell_centers_y_bsim, cell_lengths_bsim, cell_radii_bsim, cell_orientations_bsim) )
             aspect_ratio_bsim, density_parameter_bsim = image_envelope_props(image_bsim)
 
             cell_centers_x_cp = df_cp["AreaShape_Center_X"]
@@ -215,7 +214,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
 
             anisotropies_cp = get_local_anisotropies(cell_centers_x_cp, cell_centers_y_cp, cell_orientations_cp, radius = 60) # set range as 60 for now
             # change to actual image when we have real data, store image_dimensions as a variable
-            image_cp = np.array( draw_image_bw((1870, 2208), cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
+            image_cp = np.array( draw_image_bw(sim_dim, cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
             aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)
 
             #non_zero_bsim_aniso = [i for i in anisotropies_bsim if i != "-"]
@@ -247,8 +246,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         '''
 
         # Infer Real Simulations
-        cp_time_step = 0.5#2/60     # in hours
-        avg_cp_elongation_rates = getElongationRate(cp_data, cp_time_step)
+        avg_cp_elongation_rates = getElongationRate(cp_data, cp_export_time)
         avg_cp_division_lengths = getDivisionThreshold(cp_data)
 
         '''

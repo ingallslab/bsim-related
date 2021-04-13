@@ -23,6 +23,7 @@ from bsim_related.abc_smc import inferParameters, plotter, EpsilonSchedule, kern
 class abcsmc:
 
     def __init__(self,
+                 cmds,
                  prior,
                  first_epsilon,
                  final_epsilon,
@@ -33,12 +34,19 @@ class abcsmc:
                  initial_pop,
                  sim_time,
                  bsim_data,
-                 cp_data):
+                 cp_data,
+                 bsim_jar,
+                 jars,
+                 driver_file,
+                 bsim_export_time,
+                 cp_export_time,
+                 sim_dim):
         self.prior = prior
         self.first_epsilon = first_epsilon
         self.final_epsilon = final_epsilon
         self.epsilon_schedule = [self.first_epsilon]
         self.alpha = alpha
+        self.alphas = [alpha]
         self.n_par = n_par
         self.n_pop = n_pop
         self.n_params = n_params
@@ -46,6 +54,12 @@ class abcsmc:
         self.sim_time = sim_time
         self.bsim_data = bsim_data
         self.cp_data = cp_data
+        self.bsim_jar = bsim_jar
+        self.jars = jars
+        self.driver_file = driver_file
+        self.bsim_export_time = bsim_export_time
+        self.cp_export_time = cp_export_time
+        self.sim_dim = sim_dim
         
         self.kernel = []
         self.kernel_type = 2                                                        # component-wise normal kernel
@@ -59,32 +73,25 @@ class abcsmc:
         self.distances = []
         self.acceptance_rates = []
         self.total_runs = 0
+        self.cmds = cmds                                                            # list of commands to change parameter values in BSim
 
     # Gets a value (uniform) between boundaries, rounded to 3 decimal places
     def getRandomValue(self, bounds):
         return round(random.uniform(bounds[0], bounds[1]), 3)
 
-    # Parameter conversion
-    def convertParams(self, params):
-        pixel_to_um_ratio = 13.89
-
-        # Apply conversion rate to 3 decimal places
-        params = tuple( round(i / pixel_to_um_ratio, 3) for i in params)
-        # Convert the parameters into string to use in the command line
-        params = tuple(str(i) for i in params)
-        
-        return params
+    # Convert the parameters into string to use in the command line
+    def paramToString(self, curr_params):
+        str_params = tuple(str(i) for i in curr_params)
+        return str_params
 
     # Execute BSim simulation with given parameters
-    def executeSimulation(self, params):
-        params = self.convertParams(params)
-        
-        bsim_jar = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\legacy\\jars\\bsim-2021.jar"
-        jars = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\lib\\*"              # Gets all jars    
-        program_path = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\run\\BSimPhageLogger\\BSimPhageField.java"
-            
-        cmd = ["java", "-cp", bsim_jar + ";" + jars, program_path, "-el_mean", params[0], "-el_stdv", params[1],
-               "-div_mean", params[2], "-div_stdv", params[3], "-pop", str(self.initial_pop), "-simt", str(self.sim_time)]
+    def executeSimulation(self, curr_params):
+        str_params = self.paramToString(curr_params)
+
+        cmd = ["java", "-cp", self.bsim_jar + ";" + self.jars, self.driver_file, "-pop", str(self.initial_pop), "-simt", str(self.sim_time)]
+        for i in range(0, len(str_params)):
+            cmd.append(self.cmds[i])
+            cmd.append(str_params[i])
 
         process = subprocess.Popen(cmd)
         process.wait()          # Waits until the simulation has been completed
@@ -105,8 +112,6 @@ class abcsmc:
                 pert_params.append(pert)
 
                 ind += 1
-         
-
         return pert_params
 
     # Get the probability density of the current value from the pdf of the kernel
@@ -144,8 +149,6 @@ class abcsmc:
             for i in range (0, self.n_par):
                 kernel_pdf = self.getPdfKernel(curr_params, self.prev_population[i], aux)
                 denom += self.prev_weights[i] * kernel_pdf
-                
-            #print("numer/denom: ", numer/denom)
             return numer/denom
         
     # Normalize the weights
@@ -161,18 +164,16 @@ class abcsmc:
         # Index of the total distance
         total_dist_ind = 0
 
-        # Increase or decrease alpha depending on the acceptance rate
-        if ( pop > 1 and self.alpha < 0.90 and self.alpha > 0.1):
-            if ( 100*((self.acceptance_rates[pop] - self.acceptance_rates[pop -1])/self.acceptance_rates[pop - 1]) < -40):
-                self.alpha += 0.05
-            elif ( 100*((self.acceptance_rates[pop] - self.acceptance_rates[pop -1])/self.acceptance_rates[pop - 1]) > 40):
-                self.alpha -= 0.05
-            print("self.alpha: ", self.alpha)
+        '''# Increase or decrease alpha depending on the acceptance rate
+        if ( pop > 1): 
+            if ( (100*((self.acceptance_rates[pop] - self.acceptance_rates[pop -1])/self.acceptance_rates[pop - 1]) < -35) and self.alpha < 0.80 ):
+                self.alpha += 0.10
+            elif ( (100*((self.acceptance_rates[pop] - self.acceptance_rates[pop -1])/self.acceptance_rates[pop - 1]) > 35)  and self.alpha > 0.20):
+                self.alpha -= 0.10'''
 
         prev_dist = np.sort(self.prev_distances, axis = 0) # Sort on the vertical 
         ntar = int(self.alpha * self.n_par)
         
-
         # Get the new epsilon from the total distance
         new_epsilon = round(prev_dist[ntar, total_dist_ind], 3)
 
@@ -189,7 +190,11 @@ class abcsmc:
 
         # Update epsilon schedule
         self.epsilon_schedule.append(new_epsilon)
+        # Add current alpha value to array
+        self.alphas.append(self.alpha)
 
+        print("computeEpsilon new_epsilon:", new_epsilon)
+        print("self.alpha: ", self.alpha)
         
         return end, new_epsilon
 
@@ -224,9 +229,9 @@ class abcsmc:
 
         while (running):
             if (final == True): running = False
-
+            
             if ( epsilon == self.final_epsilon):
-                curr_pop, curr_dist = self.iterate_population(epsilon, pop, True, True)
+                curr_pop, curr_dist = self.iterate_population(epsilon, pop, False, False)
             else:
                 curr_pop, curr_dist = self.iterate_population(epsilon, pop, False, False)
 
@@ -235,11 +240,11 @@ class abcsmc:
             # Add current population of accepted particle distances to total distances
             self.distances.append(curr_dist)
 
-            # Compute the next epsilon
-            final, epsilon = self.computeEpsilon(epsilon, pop)
-
-            # Increase population
-            pop += 1
+            if (running):
+                # Compute the next epsilon
+                final, epsilon = self.computeEpsilon(epsilon, pop)
+                # Increase population
+                pop += 1
 
     # Computes one population
     def iterate_population(self, epsilon, t, export_data, export_plots):
@@ -270,7 +275,9 @@ class abcsmc:
 
             # Generate a parameter vector from specified bounds of prior distribution
             if ( t == 0 ):
-                current_params = [self.getRandomValue(self.prior[0]), self.getRandomValue(self.prior[1]), self.getRandomValue(self.prior[2]), self.getRandomValue(self.prior[3])]
+                current_params = []
+                for i in range(0, len(self.prior)):
+                    current_params.append(self.getRandomValue(self.prior[i]))
                 print("t==0; current params: ", current_params)
             else:
                 current_params = random.choices(population = self.prev_population, weights = self.prev_weights, k = 1)[0]   # returns a list
@@ -290,13 +297,21 @@ class abcsmc:
                 # Run BSim simulation with given parameters
                 self.executeSimulation(current_params)
                 # Get the elongation and division distances
-                elongation_dist, division_dist, local_anisotropy_dist, aspect_ratio_diff, density_parameter_diff = inferParameters.run(self.bsim_data, self.cp_data, self.convertParams(current_params), export_data, export_plots)
+                elongation_dist, division_dist, local_anisotropy_dist, aspect_ratio_diff, density_parameter_diff = inferParameters.run(self.bsim_data,
+                                                                                                                                       self.cp_data,
+                                                                                                                                       self.paramToString(current_params),
+                                                                                                                                       export_data,
+                                                                                                                                       export_plots,
+                                                                                                                                       self.bsim_export_time,
+                                                                                                                                       self.cp_export_time,
+                                                                                                                                       self.sim_dim)                
             # Get the total distance
             total_dist = elongation_dist + division_dist + local_anisotropy_dist + abs(aspect_ratio_diff) + abs(density_parameter_diff)
             
             print("elongation_dist: ", elongation_dist, "division_dist: ", division_dist)
             print("local_anisotropy_dist: ", local_anisotropy_dist, "aspect_ratio_diff: ", aspect_ratio_diff, "density_parameter_diff: ", density_parameter_diff)
             print("total_dist: ", total_dist)
+            print("epsilon: ", epsilon)
 
             print("total_dist={} epsilon={} n={} n_par={}\ntotal_dist < epsilon: {}".format(total_dist, epsilon, n, self.n_par, (total_dist < epsilon)))
             # Accept the current parameters if the discrepancy between the simulated data and experimental data is less than the threshold
@@ -306,9 +321,9 @@ class abcsmc:
                 curr_weights.append(self.calcWeight(current_params, t))
                 curr_distances.append((total_dist, elongation_dist, division_dist, local_anisotropy_dist, aspect_ratio_diff, density_parameter_diff))
                 
-                print("curr_weights: ", curr_weights)
+                #print("curr_weights: ", curr_weights)
                 print("current pop: ", curr_population)
-                print("curr_distances: ", curr_distances)
+                #print("curr_distances: ", curr_distances)
 
                 # Increase the number of particles in the population
                 n += 1
@@ -331,15 +346,15 @@ class abcsmc:
 
         # Normalize the weights
         self.normalizeWeights(self.prev_weights, len(self.prev_population))
-        print("normalize prev_weights: ", self.prev_weights)
+        #print("normalize prev_weights: ", self.prev_weights)
 
         # Update kernel using previous population
         self.kernel = kernels.getKernel(self.kernel_type, self.kernel_list, np.array(self.prev_population), self.prev_weights)
-        print("kernel[2] (variance): ", self.kernel[2])
+        #print("kernel[2] (variance): ", self.kernel[2])
 
         return curr_population, curr_distances
 
-    # Find the error between the median parameter of every population and the true value
+    # Find the sum of squared distances between the median parameter of every population and the true value
     def get_error(self):
         n_pop = len(self.parameters)
         median_params = []
@@ -350,134 +365,196 @@ class abcsmc:
 
         print("median_params: ", median_params)
 
-        c = 13.89
-        true_values = [1.23*c, 0.277*c, 7.0*c, 0.1*c]
+        true_values = [1.23, 0.277, 7.0, 0.1]
+        #true_values = [1.23, 0.277, 7.0, 0.1, 50.0, 50.0, 10.0, 0.6, 100, 0.05]
+        #true_values = [50.0, 50.0, 10.0, 0.6, 100, 0.05]
         errors = []
         for i in range(0, len(median_params)):
             error = 0
             for j in range(0, len(true_values)):
                 error += ( median_params[i][j] - true_values[j] )**2
-                print(( median_params[i][j] - true_values[j] )**2)
             errors.append(error)
 
         print("errors: ", errors)
             
         return errors, median_params
 
-    # Save posterior to csv
-    def save_data(self):
-
-        pop_length = len(self.parameters) 
-            
-        cols = ["Population", "Particles", "Epsilon", "Acceptance_Rate", "Median_Parameters", "Errors", "ElongationMean", "ElongationStdv", "DivisionMean",    
-                "DivisionStdv", "TotalDist", "ElongationDist", "DivisionDist", "LocalAnisotropyDist", "AspectRatioDiff", "DensityParamDiff"]
+    # Save stats to csv
+    def save_stats(self):
+        n_pop = len(self.parameters)
+        cols = ["Population", "Epsilon", "Acceptance_Rate", "Error", "Alpha", "Median_Parameters"]
         data = []
         errors, median_params = self.get_error()
 
-        
-        #n_particles = 1
-        for t in range(1, pop_length + 1):
-            for i in range(1, self.n_par + 1):
-                row = [t]
-                row.append(i)
-                print("t: ", t)
-                row.append(self.epsilon_schedule[t - 1])
-                row.append(self.acceptance_rates[t - 1])
-                row.append(median_params[t - 1])
-                row.append(errors[t - 1])
-                
-                row.append(self.parameters[t - 1][i - 1][0])
-                row.append(self.parameters[t - 1][i - 1][1])
-                row.append(self.parameters[t - 1][i - 1][2])
-                row.append(self.parameters[t - 1][i - 1][3])
+        if ( len(self.alphas) < n_pop ):
+            self.alphas = ["-" for i in range(0, n_pop)]
 
-                row.append(self.distances[t - 1][i - 1][0])
-                row.append(self.distances[t - 1][i - 1][1])
-                row.append(self.distances[t - 1][i - 1][2])
-                row.append(self.distances[t - 1][i - 1][3])
-                row.append(self.distances[t - 1][i - 1][4])
-                row.append(self.distances[t - 1][i - 1][5])
+        for t in range(0, n_pop):
+            row = [t + 1]
+            row.append(self.epsilon_schedule[t])
+            row.append(self.acceptance_rates[t])
+            row.append(errors[t])
+            row.append(self.alphas[t])
+            row.append(median_params[t])
 
-                #n_particles += 1
-
-                # Add row
-                data.append(row)
+            # Add row
+            data.append(row)
 
         # Export data to csv file
         param_data = pandas.DataFrame(data, columns = cols)
         print(param_data)
 
         # If folder doesn't exist, create new folder "Posterior_Data" to store the csv files
-        comp_path = Path(__file__).parent.absolute()/'Posterior_Data' 
-        if not os.path.exists(comp_path):
-            os.makedirs(comp_path)
+        data_folder = "Stats_" + str(self.parameters[0][0][0]) + "_" + str(self.parameters[0][0][1])
+        stats_path = Path(__file__).parent.absolute()/'Posterior_Data'/data_folder
+        if not os.path.exists(stats_path):
+            os.makedirs(stats_path)
 
-        post_data_name = "posterior_data" + "_" + str(self.parameters[0][0]) + ".csv"
-        param_data.to_csv(comp_path/post_data_name)
+        post_data_name = "posterior_stats" + "_" + str(self.parameters[0][0][0]) + "_" + str(self.parameters[0][0][1]) + ".csv"
+        param_data.to_csv(stats_path/post_data_name)
+
+    # Save posterior to csv
+    def save_data(self, params):
+
+        pop_length = len(self.parameters) 
+            
+        cols = ["Population", "Particles", "Epsilon", "Acceptance_Rate", "Median_Parameters", "Error",    
+                "TotalDist", "ElongationDist", "DivisionDist", "LocalAnisotropyDist", "AspectRatioDiff", "DensityParamDiff"]
+        cols += params
+        
+        data = []
+        errors, median_params = self.get_error()
+
+        for t in range(0, pop_length):
+            for i in range(0, self.n_par):
+                row = [t + 1]
+                row.append(i)
+                row.append(self.epsilon_schedule[t])
+                row.append(self.acceptance_rates[t])
+                row.append(median_params[t])
+                row.append(errors[t])
+
+                row.append(self.distances[t][i][0])
+                row.append(self.distances[t][i][1])
+                row.append(self.distances[t][i][2])
+                row.append(self.distances[t][i][3])
+                row.append(self.distances[t][i][4])
+                row.append(self.distances[t][i][5])
+
+                for k in range(0, len(params)):
+                    row.append(self.parameters[t][i][k])
+
+                # Add row
+                data.append(row)
+
+        data_folder = "Stats_" + str(self.parameters[0][0][0]) + "_" + str(self.parameters[0][0][1])
+        param_data = pandas.DataFrame(data, columns = cols)
+        print(param_data)
+
+        # If folder doesn't exist, create new folder "Posterior_Data" to store the csv files
+        stats_path = Path(__file__).parent.absolute()/'Posterior_Data'/data_folder
+        if not os.path.exists(stats_path):
+            os.makedirs(stats_path)
+
+        post_data_name = "posterior_data" + "_" + str(self.parameters[0][0][0]) + "_" + str(self.parameters[0][0][1]) + ".csv"
+        
+        # Export data to csv file
+        param_data.to_csv(stats_path/post_data_name)
 
         # Graph the data
-        plot_folder = "Plots_" + str(self.parameters[0][0])
-        params = ["ElongationMean", "ElongationStdv", "DivisionMean", "DivisionStdv"]
 
         # Kde plot
-        plotter.plotKdeComp(param_data, plot_folder, self.prior, params)
+        plotter.plotKdeComp(param_data, stats_path, self.prior, params, 2, 2)
         
         # Pair plot
-        plotter.pairPlot(param_data, plot_folder, params, "kde", "Kde")
+        plotter.pairPlot(param_data, stats_path, params)
+        plotter.gridPlot(param_data, stats_path, params, self.prior)
+        plotter.gridPlotVer3(param_data, stats_path, params, self.prior)
+
+        # Plot statistics
+        plotter.plotStats(param_data, stats_path, self.acceptance_rates, errors, self.epsilon_schedule)
 
         # Correlation matrix
-        plotter.plotCovMatrixNorm(param_data, plot_folder, params)
+        plotter.plotCovMatrixNorm(param_data, stats_path, params)
 
         # Plot true distirbution
-        plotter.plotTrueDist(param_data, self.n_par, params, plot_folder)
+        plotter.plotTrueElongDist(param_data, self.n_par, params, stats_path)
 
         # Plot the coefficients of variation
-        plotter.plotCV(param_data, plot_folder, params)
-
-        # Plot the acceptance rate
-        plotter.plotAcceptance(param_data, self.acceptance_rates, plot_folder)
+        plotter.plotCV(param_data, stats_path, params)
 
         # Plot the posterior kde for each parameter
-        plotter.plotPostKde(param_data, plot_folder, self.prior, params)
+        plotter.plotPostKde(param_data, stats_path, self.prior, params)
 
 def main():
     # Define epsilon schedule
-    first_epsilon = 40#14
-    final_epsilon = 12#6#5.5
+    first_epsilon = 25
+    final_epsilon = 20
 
     # Define range for input
-    el_mean_bounds = [10, 20]#[14, 20]           
-    el_stdv_bounds = [1, 6] 
-    div_mean_bounds = [90, 105]
-    div_stdv_bounds = [0, 3]
+    el_mean_bounds = [0.7, 1.4]             # um/hr
+    el_stdv_bounds = [0.05, 0.4]            # um/hr
+    div_mean_bounds = [5, 9]                # um
+    div_stdv_bounds = [0.01, 0.3]           # um
+    
+    k_int_bounds = [30, 80]                 # N/um
+    k_cell_bounds = [30, 80]                # N/um
+    k_stick_bounds = [1, 19]                # N/um
+    rng_stick_bounds = [0.1, 1.1]           # um
+    twist_bounds = [70, 130]                # N/um
+    push_bounds = [0.01, 0.1]               # N/um
+
     prior = [el_mean_bounds, el_stdv_bounds, div_mean_bounds, div_stdv_bounds]
+    '''prior = [el_mean_bounds, el_stdv_bounds, div_mean_bounds, div_stdv_bounds, k_int_bounds,
+             k_cell_bounds, k_stick_bounds, rng_stick_bounds, twist_bounds, push_bounds]
+    prior = [k_int_bounds, k_cell_bounds, k_stick_bounds, rng_stick_bounds, twist_bounds, push_bounds]'''
 
     # Number of populations
-    n_pop = 2#2
+    n_pop = 2
     # Number of particles for each population
-    n_par = 6#10
-    # Number of parameters in each particle
-    n_params = 4
+    n_par = 3
     # (Automated Epsilon) Specifies the quantile of the previous population distance distribution to choose as the next epsilon
-    alpha = 0.5
+    alpha = 0.6
     # (Fixed Epsilon) Specifies the epsilon schedule
-    epsilon_type = "linear"
+    epsilon_type = "linear"#"exp"
     # Initial BSim population
     initial_pop = 1
     # BSim simulation time
     sim_time = 6.5
+    # BSim simulation time step (hr)
+    bsim_export_time = 0.5
+    # Experiment time step (hr)
+    cp_export_time = 0.5
+    # Simulation dimensions
+    sim_dim = (800, 600)  #(1870, 2208)
     
     # Simulation files
     bsim_data = "BSim_Simulation.csv"
-    cp_data = 'BSim_Simulation_1.23_0.277_7.0_0.1-6.5.csv'#'BSim_Simulation-0.5.csv'
+    cp_data = 'BSim_Exp_Data.csv'#'BSim_Simulation_1.23_0.277_7.0_0.1-6.5.csv'
+
+    # Paths and files required to run BSim
+    bsim_jar = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\legacy\\jars\\bsim-2021.jar"
+    jars = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\lib\\*"              # Gets all jars    
+    driver_file = 'BSimPhageLogger.BSimPhageField'
+
+    # Parameters
+    params = ["ElongationMean", "ElongationStdv", "DivisionMean", "DivisionStdv"]
+    #params = ["InternalForce", "CellCollisionForce", "XForce", "StickingRange", "Twist", "Push"]
     
-    abc = abcsmc(prior, first_epsilon, final_epsilon, alpha, n_par, n_pop, n_params, initial_pop, sim_time, bsim_data, cp_data)
+    # Commands to change BSim parameter values (should correspond to params array)
+    cmds = ["-el_mean", "-el_stdv", "-div_mean", "-div_stdv"]
+    #cmds = ["-k_int", "-k_cell", "-k_stick", "-rng_stick", "-twist", "-push"]
+    
+    # Number of parameters in each particle
+    n_params = len(params)
+    
+    abc = abcsmc(cmds, prior, first_epsilon, final_epsilon, alpha, n_par, n_pop, n_params, initial_pop, sim_time, bsim_data, cp_data,
+                 bsim_jar, jars, driver_file, bsim_export_time, cp_export_time, sim_dim)
     abc.run_fixed(epsilon_type)
     #abc.run_auto()
-    abc.save_data()
-
-    #print("abc.parameters:\n", abc.parameters)
-    #print("abc.distances:\n", abc.distances)
+    #abc.save_stats()
+    abc.save_data(params)
+    
 
 # -------------------
 

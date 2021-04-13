@@ -165,7 +165,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots, bsim_expo
     #print("Newest modified", newest)
     
     # Get data from the csv file
-    bsim_path = Path(__file__).parent.parent.parent.absolute()/'scripts'/'PhageFieldSims'/newest/bsim_file
+    bsim_path = Path(__file__).parent.parent.parent.absolute()/'PhageFieldSims'/bsim_folder_name/bsim_file
     bsim_data = pandas.read_csv(bsim_path, index_col = False) # force pandas to not use the first column as the index
 
     cp_path = Path(__file__).parent.parent.parent.absolute()/'PhageFieldSims'/cp_file
@@ -178,9 +178,10 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots, bsim_expo
     if (not bsim_data.empty and not cp_data.empty):
         
         # Infer BSim Simulations
-        #avg_bsim_elongation_rates = getElongationRate(bsim_data, bsim_export_time)
+        bsim_time_step = 0.5        # in hours
+        #avg_bsim_elongation_rates = getElongationRate(bsim_data, bsim_time_step)
         #avg_bsim_division_lengths = getDivisionThreshold(bsim_data)
-        avg_bsim_elongation_rates, avg_bsim_division_lengths = get_growth_info(bsim_data, bsim_export_time) ######
+        avg_bsim_elongation_rates, avg_bsim_division_lengths = get_growth_info(bsim_data, bsim_time_step) ######
 
         # should be the same
         image_count = min(cp_data.at[cp_data.shape[0] - 1, "ImageNumber"],

@@ -13,7 +13,7 @@ from statistics import mean
 
 from ..data_processing.image_drawing import draw_image_bw
 from ..data_processing.image_processing import image_envelope_props
-from ..data_processing.cell_data_processing import get_local_anisotropies
+from ..data_processing.cell_data_processing import get_local_anisotropies, get_growth_info
 #from image_drawing import draw_image_bw
 #from image_processing import image_envelope_props
 #from cell_data_processing import get_local_anisotropies
@@ -161,10 +161,10 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
     bsim_folder_name = "params_" + current_params[0] + "_" + current_params[1] + "_" + current_params[2] + "_" + current_params[3]
     
     # Get data from the csv file
-    bsim_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/'PhageFieldSims'/bsim_folder_name/bsim_file
+    bsim_path = Path(__file__).parent.parent.parent.absolute()/'PhageFieldSims'/bsim_folder_name/bsim_file
     bsim_data = pandas.read_csv(bsim_path, index_col = False) # force pandas to not use the first column as the index
 
-    cp_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/'PhageFieldSims'/cp_file
+    cp_path = Path(__file__).parent.parent.parent.absolute()/'PhageFieldSims'/cp_file
     cp_data = pandas.read_csv(cp_path, index_col = False)     # force pandas to not use the first column as the index
     
     print(bsim_data)
@@ -175,8 +175,9 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
         
         # Infer BSim Simulations
         bsim_time_step = 0.5        # in hours
-        avg_bsim_elongation_rates = getElongationRate(bsim_data, bsim_time_step)
-        avg_bsim_division_lengths = getDivisionThreshold(bsim_data)
+        #avg_bsim_elongation_rates = getElongationRate(bsim_data, bsim_time_step)
+        #avg_bsim_division_lengths = getDivisionThreshold(bsim_data)
+        avg_bsim_elongation_rates, avg_bsim_division_lengths = get_growth_info(bsim_data, bsim_time_step) ######
 
         # should be the same
         image_count = min(cp_data.at[cp_data.shape[0] - 1, "ImageNumber"],
@@ -217,8 +218,8 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
             #non_zero_bsim_aniso = [i for i in anisotropies_bsim if i != "-"]
             #non_zero_cp_aniso = [i for i in anisotropies_cp if i != "-"]
             ws_local_anisotropies.append(wasserstein_distance(anisotropies_bsim, anisotropies_cp))
-            aspect_ratio_diff.append(aspect_ratio_bsim - aspect_ratio_cp)
-            density_parameter_diff.append(density_parameter_bsim - density_parameter_cp)
+            aspect_ratio_diff.append(abs(aspect_ratio_bsim - aspect_ratio_cp))
+            density_parameter_diff.append(abs(density_parameter_bsim - density_parameter_cp))
 
         print(ws_local_anisotropies)
         print(aspect_ratio_diff)
@@ -244,8 +245,9 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots):
 
         # Infer Real Simulations
         cp_time_step = 0.5#2/60     # in hours
-        avg_cp_elongation_rates = getElongationRate(cp_data, cp_time_step)
-        avg_cp_division_lengths = getDivisionThreshold(cp_data)
+        #avg_cp_elongation_rates = getElongationRate(cp_data, cp_time_step)
+        #avg_cp_division_lengths = getDivisionThreshold(cp_data)
+        avg_cp_elongation_rates, avg_cp_division_lengths = get_growth_info(cp_data, cp_time_step)
 
         '''
         df_cp = cp_data[cp_data["ImageNumber"] == cp_data.at[cp_data.shape[0] - 1, "ImageNumber"]]

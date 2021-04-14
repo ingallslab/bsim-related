@@ -501,7 +501,7 @@ def main():
     k_cell_bounds = [30, 80]                # N/um
     k_stick_bounds = [1, 19]                # N/um
     rng_stick_bounds = [0.1, 1.1]           # um
-    twist_bounds = [70, 130]                # N/um
+    twist_bounds = [0.01, 0.2]              # N/um
     push_bounds = [0.01, 0.1]               # N/um
 
     prior = [el_mean_bounds, el_stdv_bounds, div_mean_bounds, div_stdv_bounds]
@@ -542,6 +542,7 @@ def main():
     #params = ["InternalForce", "CellCollisionForce", "XForce", "StickingRange", "Twist", "Push"]
     
     # Commands to change BSim parameter values (should correspond to params array)
+    # Command names are located in BSim
     cmds = ["-el_mean", "-el_stdv", "-div_mean", "-div_stdv"]
     #cmds = ["-k_int", "-k_cell", "-k_stick", "-rng_stick", "-twist", "-push"]
     

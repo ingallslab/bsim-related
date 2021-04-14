@@ -3,9 +3,14 @@ import numpy as np
 from statistics import mean
 import skimage.io, skimage.filters, skimage.util
 
-from image_drawing import draw_image_bw
-from image_processing import image_envelope_props
-from cell_data_processing import get_local_anisotropies
+import os, sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from bsim_related.data_processing.image_drawing import draw_image_bw
+from bsim_related.data_processing.image_processing import image_envelope_props
+from bsim_related.data_processing.cell_data_processing import get_local_anisotropies
+#from image_drawing import draw_image_bw
+#from image_processing import image_envelope_props
+#from cell_data_processing import get_local_anisotropies
 
 # The radius used by get_local_anisotropies to decide if a neighbour is in range
 radius = 60
@@ -63,7 +68,7 @@ for image_number in range(1, image_count + 1):
     cell_centers_x_cp = df_cp["AreaShape_Center_X"]
     cell_centers_y_cp = df_cp["AreaShape_Center_Y"]
     # uses major and minor axis length for length and radius
-    cell_lengths_cp = df_cp["AreaShape_MajorAxisLength"] - df_bsim["AreaShape_MinorAxisLength"]
+    cell_lengths_cp = df_cp["AreaShape_MajorAxisLength"] - df_cp["AreaShape_MinorAxisLength"]
     cell_radii_cp = df_cp["AreaShape_MinorAxisLength"] / 2
     cell_orientations_cp = df_cp["AreaShape_Orientation"]
 

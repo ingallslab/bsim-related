@@ -2,8 +2,10 @@
 import numpy as np
 import math
 import scipy.linalg as la
+from statistics import mean
 
-from cell_contact import determine_contact
+from .cell_contact import determine_contact
+#from cell_contact import determine_contact
 
 # in radians; make this a function parameter
 orientation_threshold = 0.07
@@ -218,3 +220,70 @@ def get_local_anisotropies(cell_centers_x, cell_centers_y, cell_orientations, ra
         local_anisotropies.append(max(la.eigvals(projection_matrix).real))
 
     return local_anisotropies
+
+# Find the change between the lengths of non-infected bacteria at each timestep
+# Find the length of the bacteria before the population increases and the length of the bacteria decreases by 5%
+# get_elongation_rates_and_division_lengths
+def get_growth_info(data, time_step):
+    image_count = data.at[data.shape[0] - 1, "ImageNumber"]
+    elongation_rates = []
+    division_lengths = []
+    current_data = data[data["ImageNumber"] == image_count]
+    current_data.reset_index(drop = True, inplace = True)
+    # the key for each sub-list of elongation rates (which is the value) is object number of the parent of
+    # the object corresponding to the first elongation rate in the sub-list
+    old_elongation_rates_indices = {}
+    for i in range(current_data.shape[0]):
+        elongation_rates.append([])
+        old_elongation_rates_indices[i + 1] = i
+    
+    for image_number in range(image_count, 1, -1):
+        previous_data = data[data["ImageNumber"] == (image_number - 1)]
+        previous_data.reset_index(drop = True, inplace = True)
+        parent_object_count = previous_data.at[previous_data.shape[0] - 1, "ObjectNumber"] # previous_data.shape[0]
+        child_object_numbers = [[] for i in range(parent_object_count)]
+        a = current_data["TrackObjects_ParentObjectNumber_50"] ###########
+        for i in range(current_data.shape[0]):
+            parent_object_number = current_data.at[i, "TrackObjects_ParentObjectNumber_50"]
+            # check for value 0 for TrackObjects_ParentObjectNumber_50 to account for suddenly appearing objects
+            if (parent_object_number != 0):
+                child_object_numbers[parent_object_number - 1].append(current_data.at[i, "ObjectNumber"])
+        
+        # the key for each sub-list of elongation rates (which is the value) is object number of the parent of
+        # the object corresponding to the first elongation rate in the sub-list
+        current_elongation_rates_indices = {}
+        for i in range(len(child_object_numbers)):
+            if (len(child_object_numbers[i]) == 1):
+                # elongated cell
+                child_object_number = child_object_numbers[i][0]
+                list_index = old_elongation_rates_indices[child_object_number]
+                # check if this is an object that disappears
+                if (list_index != -1):
+                    # include elongation rate if it isn't
+                    elongation_rate = ((current_data.at[child_object_number - 1, "AreaShape_MajorAxisLength"] - current_data.at[child_object_number - 1, "AreaShape_MinorAxisLength"]) -
+                    (previous_data.at[i, "AreaShape_MajorAxisLength"] - previous_data.at[i, "AreaShape_MinorAxisLength"])) / time_step
+                    elongation_rates[list_index].append(elongation_rate)
+                current_elongation_rates_indices[i + 1] = list_index # disappearing objects must also be kept track of
+            elif (len(child_object_numbers[i]) == 2):
+                # divided cell
+                division_lengths.append(previous_data.at[i, "AreaShape_MajorAxisLength"] - previous_data.at[i, "AreaShape_MinorAxisLength"])
+                # the object numbers won't go into current_elongation_rates_indices
+                # a new list will be created in elongation_rates to record the the parent's elongation rates
+                elongation_rates.append([])
+                current_elongation_rates_indices[i + 1] = len(elongation_rates) - 1
+            elif (len(child_object_numbers[i]) == 0):
+                # disappearance
+                current_elongation_rates_indices[i + 1] = -1
+            elif (len(child_object_numbers[i]) > 2): # think about what to do for multisplit
+                # multiple split
+                current_elongation_rates_indices[i + 1] = -1
+
+        old_elongation_rates_indices = current_elongation_rates_indices
+        current_data = previous_data
+    
+    avg_elongation_rates = []
+    for i in elongation_rates:
+        if(len(i) != 0):
+            avg_elongation_rates.append(mean(i))
+
+    return avg_elongation_rates, division_lengths

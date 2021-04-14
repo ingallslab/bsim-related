@@ -2,7 +2,10 @@ import pandas
 from PIL import Image
 import matplotlib
 
-from image_drawing import draw_image_bw, draw_image_colormap
+import os, sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from bsim_related.data_processing.image_drawing import draw_image_bw, draw_image_colormap
+#from image_drawing import draw_image_bw, draw_image_colormap
 
 '''
 # The radius used by get_local_anisotropies to decide if a neighbour is in range

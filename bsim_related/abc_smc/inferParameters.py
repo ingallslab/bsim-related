@@ -168,7 +168,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots, bsim_expo
     bsim_path = Path(__file__).parent.parent.parent.absolute()/'scripts'/'PhageFieldSims'/newest/bsim_file
     bsim_data = pandas.read_csv(bsim_path, index_col = False) # force pandas to not use the first column as the index
 
-    cp_path = Path(__file__).parent.parent.parent.absolute()/'PhageFieldSims'/cp_file
+    cp_path = Path(__file__).parent.parent.parent.absolute()/'scripts'/'PhageFieldSims'/cp_file
     cp_data = pandas.read_csv(cp_path, index_col = False)     # force pandas to not use the first column as the index
     
     print(bsim_data)

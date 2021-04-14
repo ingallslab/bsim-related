@@ -425,11 +425,13 @@ def plotTrueElongDist(df, n_par, params, plot_path):
         
     fig = plt.figure(figsize = (20,10))
 
+    # Plot the true value of elongation
     mean = 1.23
     stdv = 0.277
     x = np.linspace(mean - 3*stdv, mean + 3*stdv, 100)
     ax1 = (fig.add_subplot(1, 2, 1))
     ax1.plot(x, stats.norm.pdf(x, mean, stdv), 'k-', alpha = 0.5, lw = 3, label = "True Distribution")
+    # Plot the simulation results
     for i in range(0, n_par):
         post_mean = df_params["ElongationMean"].iat[i]
         post_stdv = df_params["ElongationStdv"].iat[i]
@@ -437,11 +439,13 @@ def plotTrueElongDist(df, n_par, params, plot_path):
     plt.legend(loc = "upper right")
     plt.title('Posterior Elongation Rates');
 
+    # Plot the true value of division
     mean = 7.0
     stdv = 0.1
     x = np.linspace(mean - 3*stdv, mean + 3*stdv, 100)
     ax2 = (fig.add_subplot(1, 2, 2))
     ax2.plot(x, stats.norm.pdf(x, mean, stdv), 'k-', alpha = 0.5, lw = 3, label = "True Distribution")
+    # Plot the simulation results
     for i in range(0, n_par):
         post_mean = df_params["DivisionMean"].iat[i]
         post_stdv = df_params["DivisionStdv"].iat[i]

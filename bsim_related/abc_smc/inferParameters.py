@@ -168,7 +168,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots, bsim_expo
     bsim_path = Path(__file__).parent.parent.parent.absolute()/'scripts'/'PhageFieldSims'/newest/bsim_file
     bsim_data = pandas.read_csv(bsim_path, index_col = False) # force pandas to not use the first column as the index
 
-    cp_path = Path(__file__).parent.parent.parent.absolute()/'scripts'/'PhageFieldSims'/cp_file
+    cp_path = Path(__file__).parent.parent.parent.absolute()/cp_file
     cp_data = pandas.read_csv(cp_path, index_col = False)     # force pandas to not use the first column as the index
     
     print(bsim_data)
@@ -294,8 +294,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots, bsim_expo
                     "WsElongation", "WsDivision", "WsLocalAnisotropies", "AspectRatioDiff", "DensityParamDiff"]
             data = []
 
-            print("len(anisotropies_bsim): ", len(anisotropies_bsim))
-            print("obj_count: ", obj_count)
+            #print("len(anisotropies_bsim): ", len(anisotropies_bsim))
             for obj_number in range(0, obj_count):
                 row = [obj_number + 1]
                 row.append(avg_bsim_elongation_rates[obj_number])
@@ -303,7 +302,7 @@ def run(bsim_file, cp_file, current_params, export_data, export_plots, bsim_expo
                 row.append(avg_bsim_division_lengths[obj_number])
                 row.append(avg_cp_division_lengths[obj_number])
 
-                print("obj_number - 1: ", obj_number)
+                #print("obj_number - 1: ", obj_number)
                 row.append(anisotropies_bsim[obj_number])
                 row.append(anisotropies_cp[obj_number])
                 row.append(aspect_ratio_bsim)

@@ -38,8 +38,8 @@ class abcsmc:
                  bsim_jar,
                  jars,
                  driver_file,
-                 bsim_export_time,
-                 cp_export_time,
+                 sim_dt,
+                 cp_dt,
                  sim_dim):
         self.prior = prior
         self.first_epsilon = first_epsilon
@@ -57,8 +57,8 @@ class abcsmc:
         self.bsim_jar = bsim_jar
         self.jars = jars
         self.driver_file = driver_file
-        self.bsim_export_time = bsim_export_time
-        self.cp_export_time = cp_export_time
+        self.sim_dt = sim_dt
+        self.cp_dt = cp_dt
         self.sim_dim = sim_dim
         
         self.kernel = []
@@ -88,7 +88,8 @@ class abcsmc:
     def executeSimulation(self, curr_params):
         str_params = self.paramToString(curr_params)
 
-        cmd = ["java", "-cp", self.bsim_jar + ";" + self.jars, self.driver_file, "-pop", str(self.initial_pop), "-simt", str(self.sim_time)]
+        cmd = ["java", "-cp", self.bsim_jar + ";" + self.jars, self.driver_file, "-pop", str(self.initial_pop), "-simt", str(self.sim_time),
+               "-simdt", str(self.sim_dt)] 
         for i in range(0, len(str_params)):
             cmd.append(self.cmds[i])
             cmd.append(str_params[i])
@@ -302,8 +303,8 @@ class abcsmc:
                                                                                                                                        self.paramToString(current_params),
                                                                                                                                        export_data,
                                                                                                                                        export_plots,
-                                                                                                                                       self.bsim_export_time,
-                                                                                                                                       self.cp_export_time,
+                                                                                                                                       self.sim_dt,
+                                                                                                                                       self.cp_dt,
                                                                                                                                        self.sim_dim)                
             # Get the total distance
             total_dist = elongation_dist + division_dist + local_anisotropy_dist + abs(aspect_ratio_diff) + abs(density_parameter_diff)
@@ -461,8 +462,6 @@ class abcsmc:
         # Export data to csv file
         param_data.to_csv(stats_path/post_data_name)
 
-        # Graph the data
-
         # Kde plot
         plotter.plotKdeComp(param_data, stats_path, self.prior, params, 2, 2)
         
@@ -521,16 +520,16 @@ def main():
     initial_pop = 1
     # BSim simulation time
     sim_time = 6.5
-    # BSim simulation time step (hr)
-    bsim_export_time = 0.5
+    # BSim simulation time step
+    sim_dt = 0.05
     # Experiment time step (hr)
-    cp_export_time = 0.5
+    cp_dt = 0.05
     # Simulation dimensions
     sim_dim = (800, 600)  #(1870, 2208)
     
     # Simulation files
     bsim_data = "BSim_Simulation.csv"
-    cp_data = 'BSim_Exp_Data.csv'#'BSim_Simulation_1.23_0.277_7.0_0.1-6.5.csv'
+    cp_data = 'BSim_Simulation.csv'#'MyExpt_filtered_objects_2.csv'
 
     # Paths and files required to run BSim
     bsim_jar = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\legacy\\jars\\bsim-2021.jar"
@@ -550,7 +549,7 @@ def main():
     n_params = len(params)
     
     abc = abcsmc(cmds, prior, first_epsilon, final_epsilon, alpha, n_par, n_pop, n_params, initial_pop, sim_time, bsim_data, cp_data,
-                 bsim_jar, jars, driver_file, bsim_export_time, cp_export_time, sim_dim)
+                 bsim_jar, jars, driver_file, sim_dt, cp_dt, sim_dim)
     abc.run_fixed(epsilon_type)
     #abc.run_auto()
     #abc.save_stats()

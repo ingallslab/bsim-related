@@ -534,7 +534,7 @@ def main():
     # Paths and files required to run BSim
     bsim_jar = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\legacy\\jars\\bsim-2021.jar"
     jars = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\lib\\*"              # Gets all jars    
-    driver_file = 'BSimPhageLogger.BSimPhageField'
+    driver_file = 'BSimPhageField.BSimPhageField'
 
     # Parameters
     params = ["ElongationMean", "ElongationStdv", "DivisionMean", "DivisionStdv"]

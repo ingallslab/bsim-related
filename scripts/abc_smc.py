@@ -38,6 +38,7 @@ class abcsmc:
                  bsim_jar,
                  jars,
                  driver_file,
+                 folder,
                  sim_dt,
                  cp_dt,
                  sim_dim):
@@ -57,6 +58,7 @@ class abcsmc:
         self.bsim_jar = bsim_jar
         self.jars = jars
         self.driver_file = driver_file
+        self.folder = folder
         self.sim_dt = sim_dt
         self.cp_dt = cp_dt
         self.sim_dim = sim_dim
@@ -298,7 +300,8 @@ class abcsmc:
                 # Run BSim simulation with given parameters
                 self.executeSimulation(current_params)
                 # Get the elongation and division distances
-                elongation_dist, division_dist, local_anisotropy_dist, aspect_ratio_diff, density_parameter_diff = inferParameters.run(self.bsim_data,
+                elongation_dist, division_dist, local_anisotropy_dist, aspect_ratio_diff, density_parameter_diff = inferParameters.run(self.folder,
+                                                                                                                                       self.bsim_data,
                                                                                                                                        self.cp_data,
                                                                                                                                        self.paramToString(current_params),
                                                                                                                                        export_data,
@@ -528,7 +531,8 @@ def main():
     sim_dim = (800, 600)  #(1870, 2208)
     
     # Simulation files
-    bsim_data = "BSim_Simulation.csv"
+    bsim_folder = 'PhageFieldSims' 
+    bsim_data = "BSim_Simulation.csv" 
     cp_data = 'BSim_Simulation.csv'#'MyExpt_filtered_objects_2.csv'
 
     # Paths and files required to run BSim
@@ -549,7 +553,7 @@ def main():
     n_params = len(params)
     
     abc = abcsmc(cmds, prior, first_epsilon, final_epsilon, alpha, n_par, n_pop, n_params, initial_pop, sim_time, bsim_data, cp_data,
-                 bsim_jar, jars, driver_file, sim_dt, cp_dt, sim_dim)
+                 bsim_jar, jars, driver_file, bsim_folder, sim_dt, cp_dt, sim_dim)
     abc.run_fixed(epsilon_type)
     #abc.run_auto()
     #abc.save_stats()

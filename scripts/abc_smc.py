@@ -34,14 +34,15 @@ class abcsmc:
                  initial_pop,
                  sim_time,
                  bsim_data,
-                 cp_data,
+                 cp_data_path,
                  bsim_jar,
                  jars,
                  driver_file,
                  folder,
                  sim_dt,
                  cp_dt,
-                 sim_dim):
+                 sim_dim,
+                 export_path):
         self.prior = prior
         self.first_epsilon = first_epsilon
         self.final_epsilon = final_epsilon
@@ -54,7 +55,7 @@ class abcsmc:
         self.initial_pop = initial_pop
         self.sim_time = sim_time
         self.bsim_data = bsim_data
-        self.cp_data = cp_data
+        self.cp_data_path = cp_data_path
         self.bsim_jar = bsim_jar
         self.jars = jars
         self.driver_file = driver_file
@@ -62,6 +63,7 @@ class abcsmc:
         self.sim_dt = sim_dt
         self.cp_dt = cp_dt
         self.sim_dim = sim_dim
+        self.export_path = export_path
         
         self.kernel = []
         self.kernel_type = 2                                                        # component-wise normal kernel
@@ -302,10 +304,11 @@ class abcsmc:
                 # Get the elongation and division distances
                 elongation_dist, division_dist, local_anisotropy_dist, aspect_ratio_diff, density_parameter_diff = inferParameters.run(self.folder,
                                                                                                                                        self.bsim_data,
-                                                                                                                                       self.cp_data,
+                                                                                                                                       self.cp_data_path,
                                                                                                                                        self.paramToString(current_params),
                                                                                                                                        export_data,
                                                                                                                                        export_plots,
+                                                                                                                                       self.export_path,
                                                                                                                                        self.sim_dt,
                                                                                                                                        self.cp_dt,
                                                                                                                                        self.sim_dim)                
@@ -410,7 +413,7 @@ class abcsmc:
 
         # If folder doesn't exist, create new folder "Posterior_Data" to store the csv files
         data_folder = "Stats_" + str(self.parameters[0][0][0]) + "_" + str(self.parameters[0][0][1])
-        stats_path = Path(__file__).parent.absolute()/'Posterior_Data'/data_folder
+        stats_path = self.export_path/'Posterior_Data'/data_folder
         if not os.path.exists(stats_path):
             os.makedirs(stats_path)
 
@@ -456,7 +459,8 @@ class abcsmc:
         print(param_data)
 
         # If folder doesn't exist, create new folder "Posterior_Data" to store the csv files
-        stats_path = Path(__file__).parent.absolute()/'Posterior_Data'/data_folder
+        stats_path = self.export_path/'Posterior_Data'/data_folder
+        print(stats_path)
         if not os.path.exists(stats_path):
             os.makedirs(stats_path)
 
@@ -490,8 +494,8 @@ class abcsmc:
 
 def main():
     # Define epsilon schedule
-    first_epsilon = 25
-    final_epsilon = 20
+    first_epsilon = 100
+    final_epsilon = 60
 
     # Define range for input
     el_mean_bounds = [0.7, 1.4]             # um/hr
@@ -500,9 +504,9 @@ def main():
     div_stdv_bounds = [0.01, 0.3]           # um
     
     k_int_bounds = [30, 80]                 # N/um
-    k_cell_bounds = [30, 80]                # N/um
-    k_stick_bounds = [1, 19]                # N/um
-    rng_stick_bounds = [0.1, 1.1]           # um
+    k_cell_bounds = [300, 800]                # N/um
+    k_stick_bounds = [0.001, 0.019]                # N/um
+    rng_stick_bounds = [1.0, 10.0]           # um
     twist_bounds = [0.01, 0.2]              # N/um
     push_bounds = [0.01, 0.1]               # N/um
 
@@ -523,21 +527,24 @@ def main():
     initial_pop = 1
     # BSim simulation time
     sim_time = 6.5
-    # BSim simulation time step
+    # BSim simulation time step (hr)
     sim_dt = 0.05
     # Experiment time step (hr)
     cp_dt = 0.05
     # Simulation dimensions
-    sim_dim = (800, 600)  #(1870, 2208)
+    sim_dim = (800, 600)  #(1870 / 13.89, 2208 / 13.89, 1.0)
     
     # Simulation files
     bsim_folder = 'PhageFieldSims' 
     bsim_data = "BSim_Simulation.csv" 
-    cp_data = 'BSim_Simulation.csv'#'MyExpt_filtered_objects_2.csv'
+    cp_data_path = Path(__file__).parent.parent.absolute()/'data'/'MyExpt_filtered_objects_2.csv'
+
+    # Export Location
+    export_path = Path(__file__).parent.parent.absolute()/'data'
 
     # Paths and files required to run BSim
-    bsim_jar = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\legacy\\jars\\bsim-2021.jar"
-    jars = "C:\\Users\\sheng\\eclipse_workspace_java\\bsim-ingallslab\\lib\\*"              # Gets all jars    
+    bsim_jar = str(Path(__file__).parent.parent.absolute()/'data'/'bsim.jar')
+    jars = '' # Gets all other necessary jars for running BSim
     driver_file = 'BSimPhageField.BSimPhageField'
 
     # Parameters
@@ -552,8 +559,8 @@ def main():
     # Number of parameters in each particle
     n_params = len(params)
     
-    abc = abcsmc(cmds, prior, first_epsilon, final_epsilon, alpha, n_par, n_pop, n_params, initial_pop, sim_time, bsim_data, cp_data,
-                 bsim_jar, jars, driver_file, bsim_folder, sim_dt, cp_dt, sim_dim)
+    abc = abcsmc(cmds, prior, first_epsilon, final_epsilon, alpha, n_par, n_pop, n_params, initial_pop, sim_time, bsim_data, cp_data_path,
+                 bsim_jar, jars, driver_file, bsim_folder, sim_dt, cp_dt, sim_dim, export_path)
     abc.run_fixed(epsilon_type)
     #abc.run_auto()
     #abc.save_stats()

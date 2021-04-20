@@ -114,28 +114,22 @@ def getDivisionThreshold(data):
     return avg_division_lengths
 
 # Create a plot from a distribution with overlapping bars
-def plotDistributionsOverlay( data1, data2, label1, label2, objNum, title, plot_folder) :
-    bins = objNum#math.ceil(np.sqrt(objNum))
-    
+def plotDistributionsOverlay( data1, data2, label1, label2, title, plot_folder) :
     plt.style.use('seaborn-deep')
-    plt.hist(data1, bins, alpha=0.5, label = label1, edgecolor = 'black')
-    plt.hist(data2, bins, alpha=0.5, label = label2, edgecolor = 'black')
+    plt.hist(data1, len(data1), alpha=0.5, label = label1, edgecolor = 'black')
+    plt.hist(data2, len(data2), alpha=0.5, label = label2, edgecolor = 'black')
     plt.legend(loc = 'upper right')
     plt.title(title)
     
-    # If folder doesn't exist, create new folder "Comparison_Plots" to store the png files
-    plot_path = Path(__file__).parent.absolute()/'Comparison_Plots'/plot_folder
-    if not os.path.exists(plot_path):
-        os.makedirs(plot_path)
     # Save plot
     title = title + ".png"
-    plt.savefig(plot_path/title)
+    plt.savefig(plot_folder/title)
     
     #plt.show()
     plt.close()
 
 # Plot the differences
-def plotDifferences( data1, data2, label1, label2, objNum, title, plot_folder ):
+def plotDifferences( data1, data2, label1, label2, title, plot_folder ):
     n = 1
     ind = np.arange(n)
     
@@ -144,32 +138,27 @@ def plotDifferences( data1, data2, label1, label2, objNum, title, plot_folder ):
     plt.legend(loc = 'upper right')
     plt.title(title)
     
-    # If folder doesn't exist, create new folder "Comparison_Plots" to store the png files
-    plot_path = Path(__file__).parent.absolute()/'Comparison_Plots'/plot_folder
-    if not os.path.exists(plot_path):
-        os.makedirs(plot_path)
     # Save plot
     title = title + ".png"
-    plt.savefig(plot_path/title)
+    plt.savefig(plot_folder/title)
     
     #plt.show()
     plt.close()
 
 
 # Main Function
-def run(folder, bsim_file, cp_file, current_params, export_data, export_plots, bsim_export_time, cp_export_time, sim_dim):
-    # Find the newest folder created
-    folder_path = Path(__file__).parent.absolute()/'..'/'..'/'scripts'/folder
+def run(folder, bsim_file, cp_file_path, current_params, export_data, export_plots, export_path, bsim_export_time, cp_export_time, sim_dim):
+    # Find the newest folder created for the BSim simulation
+    folder_path = Path(__file__).parent.parent.parent.absolute()/folder
     folders = [os.path.join(folder_path, x) for x in os.listdir(folder_path)]
     newest = max(folders, key = os.path.getctime)
     #print("Newest modified", newest)
     
     # Get data from the csv file
-    bsim_path = Path(__file__).parent.parent.parent.absolute()/'scripts'/folder/newest/bsim_file
+    bsim_path = folder_path/folder/newest/bsim_file
     bsim_data = pandas.read_csv(bsim_path, index_col = False) # force pandas to not use the first column as the index
 
-    cp_path = Path(__file__).parent.parent.parent.absolute()/cp_file
-    cp_data = pandas.read_csv(cp_path, index_col = False)     # force pandas to not use the first column as the index
+    cp_data = pandas.read_csv(cp_file_path, index_col = False)     # force pandas to not use the first column as the index
     
     print(bsim_data)
     print(cp_data)
@@ -186,8 +175,10 @@ def run(folder, bsim_file, cp_file, current_params, export_data, export_plots, b
         image_count = min(cp_data.at[cp_data.shape[0] - 1, "ImageNumber"],
                     bsim_data.at[bsim_data.shape[0] - 1, "ImageNumber"])
         ws_local_anisotropies = []
-        aspect_ratio_diff = []
-        density_parameter_diff = []
+        aspect_ratios_bsim = []
+        density_parameters_bsim = []
+        aspect_ratios_cp = []
+        density_parameters_cp = []
         for image_number in range(1, image_count + 1):
             df_bsim = bsim_data[bsim_data["ImageNumber"] == image_number]
             df_bsim.reset_index(drop = True, inplace = True)
@@ -205,6 +196,8 @@ def run(folder, bsim_file, cp_file, current_params, export_data, export_plots, b
             # store image_dimensions as a variable
             image_bsim = np.array( draw_image_bw(sim_dim, cell_centers_x_bsim, cell_centers_y_bsim, cell_lengths_bsim, cell_radii_bsim, cell_orientations_bsim) )
             aspect_ratio_bsim, density_parameter_bsim = image_envelope_props(image_bsim)
+            aspect_ratios_bsim.append(aspect_ratio_bsim)
+            density_parameters_bsim.append(density_parameter_bsim)
 
             cell_centers_x_cp = df_cp["AreaShape_Center_X"]
             cell_centers_y_cp = df_cp["AreaShape_Center_Y"]
@@ -217,19 +210,17 @@ def run(folder, bsim_file, cp_file, current_params, export_data, export_plots, b
             # change to actual image when we have real data, store image_dimensions as a variable
             image_cp = np.array( draw_image_bw(sim_dim, cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
             aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)
+            aspect_ratios_cp.append(aspect_ratio_cp)
+            density_parameters_cp.append(density_parameter_cp)
 
-            #non_zero_bsim_aniso = [i for i in anisotropies_bsim if i != "-"]
-            #non_zero_cp_aniso = [i for i in anisotropies_cp if i != "-"]
             ws_local_anisotropies.append(wasserstein_distance(anisotropies_bsim, anisotropies_cp))
-            aspect_ratio_diff.append(abs(aspect_ratio_bsim - aspect_ratio_cp))
-            density_parameter_diff.append(abs(density_parameter_bsim - density_parameter_cp))
 
-        '''print(ws_local_anisotropies)
-        print(aspect_ratio_diff)
-        print(density_parameter_diff)'''
-        ws_local_anisotropies = mean(ws_local_anisotropies)
-        aspect_ratio_diff = mean(aspect_ratio_diff)
-        density_parameter_diff = mean(density_parameter_diff)
+        #print(ws_local_anisotropies)
+        #print(aspect_ratio_diff)
+        #print(density_parameter_diff)
+        avg_ws_local_anisotropies = mean(ws_local_anisotropies)
+        aspect_ratio_diff = mean(aspect_ratios_bsim) - mean(aspect_ratios_cp) #mean(aspect_ratio_diff)
+        density_parameter_diff = mean(density_parameters_bsim) - mean(density_parameters_cp) #mean(density_parameter_diff)
         
         '''
         df_bsim.reset_index(drop = True, inplace = True)
@@ -286,6 +277,12 @@ def run(folder, bsim_file, cp_file, current_params, export_data, export_plots, b
 
         # -------------------------------- Data to csv  ---------------------------------------
         if ( export_data ):
+            # If folder doesn't exist, create new folder "Comparison_Data" to store the csv files
+            comp_path = export_path/'Comparison_Data'
+            if not os.path.exists(comp_path):
+                os.makedirs(comp_path)
+
+            '''
             obj_count = min(cp_data["ObjectNumber"].iloc[-1], bsim_data["ObjectNumber"].iloc[-1])
             print("obj_count: ", obj_count)
                 
@@ -324,39 +321,39 @@ def run(folder, bsim_file, cp_file, current_params, export_data, export_plots, b
             comparison_data = pandas.DataFrame(data, columns = cols)
             print(comparison_data)
 
-            # If folder doesn't exist, create new folder "Comparison_Data" to store the csv files
-            comp_path = Path(__file__).parent.absolute()/'Comparison_Data' 
-            if not os.path.exists(comp_path):
-                os.makedirs(comp_path)
-
             comp_data_name = "comparison_data" + "_" + str(current_params) + ".csv"
             comparison_data.to_csv(comp_path/comp_data_name)#'comparison_data-26hr-ver2.csv'
+            '''
 
         # -------------------------- Plot the distributions -------------------------------------
         if ( export_plots ):
-            obj_count = min(cp_data["ObjectNumber"].iat[-1],bsim_data["ObjectNumber"].iat[-1])
-            #print("obj_count: ", obj_count)
-
-            plot_folder = "Plots_" + str(current_params)
+            plot_folder = export_path/'Comparison_Plots'/("Plots_" + str(current_params))
+            # If folder doesn't exist, create new folder "Comparison_Plots" to store the png files
+            if not os.path.exists(plot_folder):
+                os.makedirs(plot_folder)
             
             el_plot_title = "Elongation_Rate" 
-            plotDistributionsOverlay(non_zero_bsim_elongation, non_zero_cp_elongation, "BSim", "CellProfiler", obj_count, el_plot_title, plot_folder)
+            plotDistributionsOverlay(non_zero_bsim_elongation, non_zero_cp_elongation, "BSim", "CellProfiler", el_plot_title, plot_folder)
 
             div_plot_title = "Division_Threshold" 
-            plotDistributionsOverlay(non_zero_bsim_division, non_zero_cp_division, "BSim", "CellProfiler", obj_count, div_plot_title, plot_folder)
+            plotDistributionsOverlay(non_zero_bsim_division, non_zero_cp_division, "BSim", "CellProfiler", div_plot_title, plot_folder)
 
+            '''
             ani_plot_title = "Local_Anisotropies" 
-            plotDistributionsOverlay(anisotropies_bsim, anisotropies_cp, "BSim", "CellProfiler", obj_count, ani_plot_title, plot_folder)
-
+            plotDistributionsOverlay(anisotropies_bsim, anisotropies_cp, "BSim", "CellProfiler", ani_plot_title, plot_folder)
+            '''
+            
             aspect_plot_title = "Aspect_Ratio" 
-            plotDifferences( aspect_ratio_bsim, aspect_ratio_cp, "BSim", "CellProfiler", obj_count, aspect_plot_title, plot_folder)
+            #plotDifferences( aspect_ratio_bsim, aspect_ratio_cp, "BSim", "CellProfiler", aspect_plot_title, plot_folder)
+            plotDistributionsOverlay(aspect_ratios_bsim, aspect_ratios_cp, "BSim", "CellProfiler", aspect_plot_title, plot_folder)
 
-            density_plot_title = "Density" 
-            plotDifferences( density_parameter_bsim, density_parameter_cp, "BSim", "CellProfiler", obj_count, density_plot_title, plot_folder)
+            density_plot_title = "Density Parameter" 
+            #plotDifferences( density_parameter_bsim, density_parameter_cp, "BSim", "CellProfiler", density_plot_title, plot_folder)
+            plotDistributionsOverlay(density_parameters_bsim, density_parameters_cp, "BSim", "CellProfiler", density_plot_title, plot_folder)
 
     else:
         print("Empty dataframe. bsim_data.empty: ", bsim_data.empty)
         return -1, -1, -1, -1, -1
 
     # Return the wasserstein distances
-    return ws_elongation, ws_division, ws_local_anisotropies, aspect_ratio_diff, density_parameter_diff
+    return ws_elongation, ws_division, avg_ws_local_anisotropies, aspect_ratio_diff, density_parameter_diff

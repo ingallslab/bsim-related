@@ -147,17 +147,8 @@ def plotDifferences( data1, data2, label1, label2, title, plot_folder ):
 
 
 # Main Function
-def run(folder, bsim_file, cp_file_path, current_params, export_data, export_plots, export_path, bsim_export_time, cp_export_time, sim_dim):
-    # Find the newest folder created for the BSim simulation
-    #folder_path = Path(__file__).parent.parent.parent.absolute()/folder
-    folder_path = Path(__file__).parent.absolute()/'..'/'..'/folder
-    folders = [os.path.join(folder_path, x) for x in os.listdir(folder_path)]
-    newest = max(folders, key = os.path.getctime)
-    #print("Newest modified", newest)
-    
-    # Get data from the csv file
-    bsim_path = folder_path/newest/bsim_file
-    bsim_data = pandas.read_csv(bsim_path, index_col = False)      # force pandas to not use the first column as the index
+def run(bsim_file_path, cp_file_path, current_params, export_data, export_plots, export_path, bsim_export_time, cp_export_time, sim_dim):
+    bsim_data = pandas.read_csv(bsim_file_path, index_col = False)      # force pandas to not use the first column as the index
 
     cp_data = pandas.read_csv(cp_file_path, index_col = False)     # force pandas to not use the first column as the index
     

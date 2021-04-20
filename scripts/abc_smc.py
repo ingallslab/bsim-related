@@ -89,11 +89,11 @@ class abcsmc:
         return str_params
 
     # Execute BSim simulation with given parameters
-    def executeSimulation(self, curr_params):
+    def executeSimulation(self, curr_params, bsim_export_path):
         str_params = self.paramToString(curr_params)
 
         cmd = ["java", "-cp", self.bsim_jar + ";" + self.jars, self.driver_file, "-pop", str(self.initial_pop), "-simt", str(self.sim_time),
-               "-simdt", str(self.sim_dt)] 
+               "-simdt", str(self.sim_dt), "-export_path", bsim_export_path] 
         for i in range(0, len(str_params)):
             cmd.append(self.cmds[i])
             cmd.append(str_params[i])
@@ -214,9 +214,9 @@ class abcsmc:
         for pop in range(0, len(self.epsilon_schedule)):
 
             if ( pop == len(self.epsilon_schedule) - 1):
-                curr_pop, curr_dist = self.iterate_population(self.epsilon_schedule[pop], pop, False, False)
+                curr_pop, curr_dist = self.iterate_population(self.epsilon_schedule[pop], pop, False, False, pop + 1)
             else:
-                curr_pop, curr_dist = self.iterate_population(self.epsilon_schedule[pop], pop, False, False)
+                curr_pop, curr_dist = self.iterate_population(self.epsilon_schedule[pop], pop, False, False, pop + 1)
 
             # Add current population of accepted particles to total parameters
             self.parameters.append(curr_pop)
@@ -236,9 +236,9 @@ class abcsmc:
             if (final == True): running = False
             
             if ( epsilon == self.final_epsilon):
-                curr_pop, curr_dist = self.iterate_population(epsilon, pop, False, False)
+                curr_pop, curr_dist = self.iterate_population(epsilon, pop, False, False, pop + 1)
             else:
-                curr_pop, curr_dist = self.iterate_population(epsilon, pop, False, False)
+                curr_pop, curr_dist = self.iterate_population(epsilon, pop, False, False, pop + 1)
 
             # Add current population of accepted particles to total parameters
             self.parameters.append(curr_pop)
@@ -252,7 +252,7 @@ class abcsmc:
                 pop += 1
 
     # Computes one population
-    def iterate_population(self, epsilon, t, export_data, export_plots):
+    def iterate_population(self, epsilon, t, export_data, export_plots, population_number):
         # Number of accepted particles
         n = 0
         # Number of runs for population
@@ -299,11 +299,11 @@ class abcsmc:
 
             # In case of lost data in csv
             while (elongation_dist == -1 and division_dist == -1):
+                bsim_export_path = (self.folder)/("Population" + str(population_number))/("Particle" + str(pop_runs))
                 # Run BSim simulation with given parameters
-                self.executeSimulation(current_params)
+                self.executeSimulation(current_params, bsim_export_path)
                 # Get the elongation and division distances
-                elongation_dist, division_dist, local_anisotropy_dist, aspect_ratio_diff, density_parameter_diff = inferParameters.run(self.folder,
-                                                                                                                                       self.bsim_data,
+                elongation_dist, division_dist, local_anisotropy_dist, aspect_ratio_diff, density_parameter_diff = inferParameters.run(bsim_export_path/self.bsim_data,
                                                                                                                                        self.cp_data_path,
                                                                                                                                        self.paramToString(current_params),
                                                                                                                                        export_data,
@@ -535,8 +535,8 @@ def main():
     sim_dim = (800, 600)  #(1870 / 13.89, 2208 / 13.89, 1.0)
     
     # Simulation files
-    bsim_folder = 'PhageFieldSims' 
-    bsim_data = "BSim_Simulation.csv" 
+    bsim_folder = Path(__file__).parent.parent.absolute()/'data'/'Simulations'
+    bsim_data = "BSim_Simulation.csv" # name of the csv file
     cp_data_path = Path(__file__).parent.parent.absolute()/'data'/'MyExpt_filtered_objects_2.csv'
 
     # Export Location

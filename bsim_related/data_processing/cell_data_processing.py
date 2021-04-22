@@ -7,10 +7,9 @@ from statistics import mean
 from .cell_contact import determine_contact
 #from cell_contact import determine_contact
 
-# in radians; make this a function parameter
+# in radians; make this a function parameter (used in the get_patch... functions)
 orientation_threshold = 0.07
-
-# ; make this a function parameter
+# make this a function parameter (used in the get_patch... functions)
 contact_range = 1.10
 
 '''
@@ -173,8 +172,8 @@ def get_patch_orientations(cell_centers_x, cell_centers_y, cell_lengths, cell_ra
 
 
 '''
-# The radius used by get_local_anisotropies to decide if a neighbour is in range
-radius = 60
+# The value used by get_local_anisotropies to decide if a neighbouring cell is in range
+neighbourhood_range = 60
 '''
 
 # Helper function: Get local anisotropy in orientations around each cell (from cell data)
@@ -182,7 +181,7 @@ radius = 60
 # Postcondition: the local anisotropy for a cell at a certain index in the dataframe corresponds
 #                to the anisotropy at that index in the list of anisotropies (i.e. the local 
 #                anisotropies have a matching order)
-def get_local_anisotropies(cell_centers_x, cell_centers_y, cell_orientations, radius):
+def get_local_anisotropies(cell_centers_x, cell_centers_y, cell_orientations, neighbourhood_range):
     local_anisotropies = []
     cell_count = len(cell_centers_x) # cell_centers_y or cell_orientations could also have been taken
     for cell_index in range(cell_count):
@@ -200,8 +199,8 @@ def get_local_anisotropies(cell_centers_x, cell_centers_y, cell_orientations, ra
             # Calculate the distance between bacteria midpoints
             dist = math.hypot( b_x - n_x, b_y - n_y )
 
-            # Check if the distance between the centers of the two bacteria is less than or equal to the radius
-            if (dist <= radius):
+            # Check if the distance between the centers of the two bacteria is less than or equal to the neighbourhood_range
+            if (dist <= neighbourhood_range):
                 # Get the orientation to calculate projection matrix and increment valid neighbour count 
                 n_angle = cell_orientations[neighbour_index]
                 valid_neighbours += 1

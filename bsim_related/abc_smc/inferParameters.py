@@ -184,7 +184,7 @@ def run(bsim_file_path, cp_file_path, current_params, export_data, export_plots,
             cell_radii_bsim = df_bsim["AreaShape_MinorAxisLength"] / 2
             cell_orientations_bsim = df_bsim["AreaShape_Orientation"]
 
-            anisotropies_bsim = get_local_anisotropies(cell_centers_x_bsim, cell_centers_y_bsim, cell_orientations_bsim, radius = 60) # set range as 60 for now
+            anisotropies_bsim = get_local_anisotropies(cell_centers_x_bsim, cell_centers_y_bsim, cell_orientations_bsim, neighbourhood_range = 60) # set range as 60 for now
             # store image_dimensions as a variable
             image_bsim = np.array( draw_image_bw(sim_dim, cell_centers_x_bsim, cell_centers_y_bsim, cell_lengths_bsim, cell_radii_bsim, cell_orientations_bsim) )
             aspect_ratio_bsim, density_parameter_bsim = image_envelope_props(image_bsim)
@@ -198,7 +198,7 @@ def run(bsim_file_path, cp_file_path, current_params, export_data, export_plots,
             cell_radii_cp = df_cp["AreaShape_MinorAxisLength"] / 2
             cell_orientations_cp = df_cp["AreaShape_Orientation"]
 
-            anisotropies_cp = get_local_anisotropies(cell_centers_x_cp, cell_centers_y_cp, cell_orientations_cp, radius = 60) # set range as 60 for now
+            anisotropies_cp = get_local_anisotropies(cell_centers_x_cp, cell_centers_y_cp, cell_orientations_cp, neighbourhood_range = 60) # set range as 60 for now
             # change to actual image when we have real data, store image_dimensions as a variable
             image_cp = np.array( draw_image_bw(sim_dim, cell_centers_x_cp, cell_centers_y_cp, cell_lengths_cp, cell_radii_cp, cell_orientations_cp) )
             aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)

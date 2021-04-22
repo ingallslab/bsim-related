@@ -3,6 +3,7 @@ import numpy as np
 from statistics import mean
 import skimage.io, skimage.filters, skimage.util
 
+from pathlib import Path
 import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from bsim_related.data_processing.image_drawing import draw_image_bw
@@ -12,15 +13,14 @@ from bsim_related.data_processing.cell_data_processing import get_local_anisotro
 #from image_processing import image_envelope_props
 #from cell_data_processing import get_local_anisotropies
 
-# The radius used by get_local_anisotropies to decide if a neighbour is in range
-radius = 60
-
+############################# arguments required to run script ####################################
 image_dimensions = (700, 250)
-comparison_data_fp = 'C:\\Users\\sohai\\IdeaProjects\\bsim\\examples\\PhysModBsim\\comparison_data.csv'
-bsim_data_fp = 'C:\\Users\\sohai\\IdeaProjects\\bsim\\examples\\PhysModBsim\\MyExpt_EditedObjects8_simulation.csv'
-cell_profiler_data_fp = 'C:\\Users\\sohai\\IdeaProjects\\bsim\\examples\\PhysModBsim\\MyExpt_EditedObjects8.csv'
-image_cp_fp_stem = r"C:\Users\sohai\Downloads\untitled_folder_6\OrigBlue0"
-image_extension = ".tiff"
+bsim_data_fp = str(Path(__file__).parent.parent.absolute()/'data'/'simulation_data.csv')
+cell_profiler_data_fp = str(Path(__file__).parent.parent.absolute()/'data'/'MyExpt_EditedObjects8.csv')
+cp_image_stem = str(Path(__file__).parent.parent.absolute()/'data'/'processed_images'/'image_') # the images should be numbered in three digits
+cp_image_extension = ".tiff"
+output_fp = str(Path(__file__).parent.parent.absolute()/'data'/'comparison_data.csv')
+neighbourhood_range = 60 # the value used by get_local_anisotropies to decide if a neighbouring cell is in range
 
 #####################################################################################################################
 
@@ -46,7 +46,7 @@ print(image_count) # to remove
 cols = ["ImageNumber", "CellProfiler_Population", "Bsim_Population", "CellProfiler_MeanLength", "Bsim_MeanLength",
         "CellProfiler_VarianceLength", "Bsim_VarianceLength", "CellProfiler_MeanOrientation", "Bsim_MeanOrientation",
         "CellProfiler_VarianceOrientation", "Bsim_VarianceOrientation", "CellProfiler_AspectRatio", "Bsim_AspectRatio",
-        "CellProfiler_DensityParameter", "Bsim_DensityParameter"]
+        "CellProfiler_DensityParameter", "Bsim_DensityParameter", "CellProfiler_LocalOrderParameter", "Bsim_LocalOrderParameter"]
 data = []
 for image_number in range(1, image_count + 1):
     df_bsim = bsim_data[bsim_data["ImageNumber"] == image_number]
@@ -86,11 +86,11 @@ for image_number in range(1, image_count + 1):
     row.append(cell_orientations_bsim.var(ddof = 0))
 
     # get image_cp
-    image_cp = skimage.io.imread(fname = image_cp_fp_stem + str(image_number) + image_extension, as_gray = True)
+    image_cp = skimage.io.imread(fname = cp_image_stem + f'{image_number:03d}' + cp_image_extension, as_gray = True)
     thresh = skimage.filters.threshold_otsu(image_cp)
     binary_image_cp = skimage.util.invert(image_cp > thresh) # inverting to make cells white, needed that way to pass into helper function
     image_cp = skimage.util.img_as_ubyte(binary_image_cp)
-    aspect_ratio_cp, density_parameter_cp = image_envelope_props(binary_image_cp)
+    aspect_ratio_cp, density_parameter_cp = image_envelope_props(image_cp)
     # get image_bsim
     image_bsim = np.array( draw_image_bw(image_dimensions, cell_centers_x_bsim, cell_centers_y_bsim, cell_lengths_bsim, cell_radii_bsim, cell_orientations_bsim) )
     aspect_ratio_bsim, density_parameter_bsim = image_envelope_props(image_bsim)
@@ -101,13 +101,13 @@ for image_number in range(1, image_count + 1):
     row.append(density_parameter_cp)
     row.append(density_parameter_bsim)
     # division angle mean and variance for bsim
-    row.append(df_bsim["Division_Angle"].mean())
-    row.append(df_bsim["Division_Angle"].var(ddof = 0))
+    #row.append(df_bsim["Division_Angle"].mean())
+    #row.append(df_bsim["Division_Angle"].var(ddof = 0))
     # local order parameters: the local order parameter for each image is the average of the local anisotropies for that image
     # test to do: local order param. should be 1 for 1 cell
-    anisotropies_bsim = get_local_anisotropies(cell_centers_x_bsim, cell_centers_y_bsim, cell_orientations_bsim, radius)
+    anisotropies_bsim = get_local_anisotropies(cell_centers_x_bsim, cell_centers_y_bsim, cell_orientations_bsim, neighbourhood_range)
     row.append(mean(anisotropies_bsim))
-    anisotropies_cp = get_local_anisotropies(cell_centers_x_cp, cell_centers_y_cp, cell_orientations_cp, radius)
+    anisotropies_cp = get_local_anisotropies(cell_centers_x_cp, cell_centers_y_cp, cell_orientations_cp, neighbourhood_range)
     row.append(mean(anisotropies_cp))
     
     # add row
@@ -116,4 +116,4 @@ for image_number in range(1, image_count + 1):
 
 comparison_data = pandas.DataFrame(data, columns = cols)
 print(comparison_data) # to remove
-comparison_data.to_csv(comparison_data_fp)
+comparison_data.to_csv(output_fp)

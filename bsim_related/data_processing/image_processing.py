@@ -63,9 +63,13 @@ def image_envelope_props(image):
     image_close = cv2.drawContours(image_close, contours, -1, 255, cv2.FILLED)
     # get properties of the envelope
     image_props = pandas.DataFrame(skimage.measure.regionprops_table(image_close, properties = ["major_axis_length", "minor_axis_length", "area"]))
+    
+    cell_image_area = np.sum(image == 255)
+    
     average_aspect_ratio = (image_props["minor_axis_length"] / image_props["major_axis_length"]).mean()
-    density_parameter = np.sum(image == 255) / image_props["area"].sum()
-    return average_aspect_ratio, density_parameter
+    area = image_props["area"].sum()
+    density_parameter = np.sum(image == 255) / area
+    return average_aspect_ratio, density_parameter, cell_image_area
 
 r"""
 ##### add documentation
